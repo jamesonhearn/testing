@@ -41,6 +41,7 @@ public class Engine {
 
     private int animTick = 0;
 
+    // Added smoothing to animations
     private double drawX =0, drawY = 0;
     private static final double SMOOTH_SPEED = 0.25;
 
@@ -196,7 +197,7 @@ public class Engine {
 
     }
 
-
+    // Actually implements the commands based on cases - mainly for main menu but also
     private void applyCommands(String input, boolean recordHistory, boolean allowQuit) {
         boolean awaitingQuit = false;
         int i = 0;
@@ -256,28 +257,31 @@ public class Engine {
     }
 
 
+    // This one is a bit of a mess
     private void handleMovementRealtime(boolean record) {
+        // check if shift down and assign T/F for each directional val
         shiftDown = StdDraw.isKeyPressed(KeyEvent.VK_SHIFT);
         boolean w = StdDraw.isKeyPressed(KeyEvent.VK_W);
         boolean a = StdDraw.isKeyPressed(KeyEvent.VK_A);
         boolean s = StdDraw.isKeyPressed(KeyEvent.VK_S);
         boolean d = StdDraw.isKeyPressed(KeyEvent.VK_D);
 
+        // Check if any key pressed, used to reset direction
         boolean anyDown = w || a || s || d;
 
-        // check if press or press and hold
+        // check if press or press and hold (Down vars jut recheck keyEvent)
         boolean wJust = w && !wDown;
         boolean aJust = a && !aDown;
         boolean sJust = s && !sDown;
         boolean dJust = d && !dDown;
 
-        // Detect NEW key presses and move immediately
+        // Detect single key presses and move immediately
         if (wJust) currentDirection = 'w';
         if (aJust) currentDirection = 'a';
         if (sJust) currentDirection = 's';
         if (dJust) currentDirection = 'd';
 
-        // Update current direction when keys are released
+        // Update current direction when keys are released - use bools to find fallback direction
         if (!w && currentDirection == 'w') currentDirection = fallbackDirection(w,a,s,d);
         if (!a && currentDirection == 'a') currentDirection = fallbackDirection(w,a,s,d);
         if (!s && currentDirection == 's') currentDirection = fallbackDirection(w,a,s,d);
@@ -314,7 +318,7 @@ public class Engine {
         dDown = d;
     }
 
-
+    // Allow for return to prior direction on multi key movements
     private char fallbackDirection(boolean w, boolean a, boolean s, boolean d) {
         if (w) return 'w';
         if (a) return 'a';
@@ -322,6 +326,8 @@ public class Engine {
         if (d) return 'd';
         return 0;
     }
+
+    // Checks for System commands (save/quit)
     private boolean processCommand(char command, boolean record, boolean allowQuit) {
         if (command == ':') {
             while (true) {
@@ -348,12 +354,15 @@ public class Engine {
     }
 
 
+    // Generator func via seed - drop player
     private void startNewWorld(long seed) {
         World generator = new World(seed);
         world = generator.generate();
         placeAvatar();
     }
 
+    // Find first coordiate that is valid placement for player on spawn - just seeks from bottom right currently
+    // Eventually include ladder/elevator placement
     private void placeAvatar() {
         for (int x = 0; x < WIDTH; x+=1) {
             for (int y =0; y < HEIGHT; y+=1) {
@@ -367,6 +376,9 @@ public class Engine {
     }
 
 
+
+    // Depending on direction, update avatar position and rotate sprite animation frame
+    // validate that canEnter (is FLOOR)
     private void moveAvatar(char direction) {
         Position target = avatar;
         switch (direction) {
@@ -394,6 +406,7 @@ public class Engine {
         }
     }
 
+    // True iff valid world position and is FLOOR tile
     private boolean canEnter(Position pos) {
         if (pos.x < 0 || pos.x >= WIDTH || pos.y < 0 || pos.y >= HEIGHT) {
             return false;
@@ -401,6 +414,7 @@ public class Engine {
         return world[pos.x][pos.y].equals(Tileset.FLOOR);
     }
 
+    //Load game via save file if exists, restores state via applyCommands
     private void loadGame() {
         if (!FileUtils.fileExists(SAVE_FILE)) {
             return;
@@ -410,10 +424,13 @@ public class Engine {
         applyCommands(saved, false, false);
     }
 
+    // Basic save func
     private void saveHistory() {
         FileUtils.writeFile(SAVE_FILE, history.toString());
     }
 
+
+    // seed parser for Menu
     private long parseSeed(String seedDigits) {
         try {
             return Long.parseLong(seedDigits);
@@ -422,6 +439,7 @@ public class Engine {
         }
     }
 
+    //Avatar now uses smoothing - placement happens instantly but movement is based on frames
     private void drawAvatar() {
         if (avatar != null && avatarSprite != null) {
             drawX += (avatar.x - drawX) * SMOOTH_SPEED;
