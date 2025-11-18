@@ -55,7 +55,7 @@ public class Engine {
         char selection = waitForMenuSelection();
         if (selection == 'q') {
             System.exit(0);
-        } else if (selection == '1') {
+        } else if (selection == 'l') {
             loadGame();
             if (world == null) {
                 promptSeedAndStart();
@@ -172,8 +172,9 @@ public class Engine {
 
     private void renderWithHud() {
         StdDraw.clear(Color.BLACK);
-        ter.drawTiles(world);
+        ter.drawTiles(world);    // draws in correct order
         drawAvatar();
+
         drawHud();
         StdDraw.show();
     }
@@ -197,7 +198,7 @@ public class Engine {
 
     }
 
-    // Actually implements the commands based on cases - mainly for main menu but also
+    // applyCommands for loading saves
     private void applyCommands(String input, boolean recordHistory, boolean allowQuit) {
         boolean awaitingQuit = false;
         int i = 0;

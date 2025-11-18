@@ -6,10 +6,10 @@ import tileengine.Tileset;
 import java.util.*;
 
 public class World {
-    public static final int WIDTH = 120;
-    public static final int HEIGHT = 80;
-    private static final int MIN_ROOM_SIZE = 10;
-    private static final int MAX_ROOM_SIZE = 25;
+    public static final int WIDTH = 50;
+    public static final int HEIGHT = 50;
+    private static final int MIN_ROOM_SIZE = 6;
+    private static final int MAX_ROOM_SIZE = 15;
     private static final int MAX_ROOM_ATTEMPTS = 1000;
     private static final double TARGET_FILL_RATIO = 0.85;
 
@@ -174,7 +174,7 @@ public class World {
 //    }
     // Removed turningCorner, just doing L shaped
     private void carveHallway(Position a, Position b) {
-        int corridorWidth = random.nextBoolean() ? 1:2;
+        int corridorWidth = 2; //random.nextBoolean() ? 1:2;
         if (random.nextBoolean()) {
             // horizontal first
             carveSegment(a, new Position(b.x, a.y), corridorWidth);
@@ -311,10 +311,15 @@ public class World {
                 }
                 for (int dx  = -1; dx <=1; dx+=1) {
                     for (int dy = -1; dy <= 1; dy+=1) {
+                        if (dx == 0 && dy == 0) {
+                            continue;
+                        }
                         int nx = x + dx;
                         int ny = y + dy;
                         if (inBounds(nx,ny) && world[nx][ny].equals(Tileset.NOTHING)) {
-                            world[nx][ny] = Tileset.WALL;
+                            //world[nx][ny] = dy == 1 && dx == 0 ? Tileset.BACK_WALL : Tileset.WALL;
+                            //world[nx][ny] = Tileset.WALL;
+                            world[nx][ny] = selectWallTile(nx,ny);
                         }
                     }
                 }
@@ -322,6 +327,27 @@ public class World {
         }
     }
 
+    private TETile selectWallTile(int x, int y) {
+        boolean floorNorth = inBounds(x, y+1) && world[x][y+1].equals(Tileset.FLOOR);
+        boolean floorSouth = inBounds(x, y-1) && world[x][y-1].equals(Tileset.FLOOR);
+        boolean floorEast  = inBounds(x+1, y) && world[x+1][y].equals(Tileset.FLOOR);
+        boolean floorWest  = inBounds(x-1, y) && world[x-1][y].equals(Tileset.FLOOR);
+
+        // Floor ABOVE → back wall (wall above floor)
+        if (floorSouth) return Tileset.BACK_WALL;
+
+        // Floor BELOW → front wall
+        if (floorNorth) return Tileset.BACK_WALL;
+
+        // Floor to the right → left-facing wall
+        if (floorEast) return Tileset.LEFT_WALL;
+
+        // Floor to the left → right-facing wall
+        if (floorWest) return Tileset.RIGHT_WALL;
+
+        // Default (isolated)
+        return Tileset.WALL;
+    }
     private boolean inBounds(int x, int y) {
         return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT;
     }
