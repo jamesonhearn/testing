@@ -3,18 +3,15 @@ package core;
 import tileengine.TETile;
 import tileengine.Tileset;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class World {
-    public static final int WIDTH = 50;
-    public static final int HEIGHT = 50;
-    private static final int MIN_ROOM_SIZE = 6;
-    private static final int MAX_ROOM_SIZE = 12;
+    public static final int WIDTH = 120;
+    public static final int HEIGHT = 80;
+    private static final int MIN_ROOM_SIZE = 10;
+    private static final int MAX_ROOM_SIZE = 25;
     private static final int MAX_ROOM_ATTEMPTS = 1000;
-    private static final double TARGET_FILL_RATIO = 0.80;
+    private static final double TARGET_FILL_RATIO = 0.85;
 
     private final Random random;
     private final TETile[][] world;
@@ -29,9 +26,16 @@ public class World {
 
 
     // Build world via rooms and turning hallways 1-2 width, retuns generated tile grid
+    // postcheck to validate connectivity via BFS
     public TETile[][] generate() {
-        carveRoomsWithHallways();
-        addPerimeterWalls();
+        for (int attempt = 0; attempt < 5; attempt += 1) {
+            resetWorld();
+            carveRoomsWithHallways();
+            addPerimeterWalls();
+            if (allFloorsConnected()) {
+                break;
+            }
+        }
         return world;
     }
 
@@ -43,6 +47,12 @@ public class World {
             }
         }
     }
+
+    private void resetWorld() {
+        rooms.clear();
+        initializeVoid();
+    }
+
     private void addExtraConnectors() {
         int maxConnectorDist = 30; // squared distance; tune to taste
 
@@ -246,6 +256,50 @@ public class World {
             }
         }
         return count;
+    }
+
+    // While I have not had any generated world that were not fully connected give the hallway implementation, this check should help
+    // protect against future implementation changes causing disconnect
+    private boolean allFloorsConnected() {
+        Position start = firstFloor();
+        int total = countFloorTiles();
+        if (start == null || total == 0) {
+            return false;
+        }
+        boolean[][] visited = new boolean[WIDTH][HEIGHT];
+        Deque<Position> queue = new ArrayDeque<>();
+        queue.add(start);
+        visited[start.x][start.y] = true;
+        int seen = 0;
+
+        while (!queue.isEmpty()) {
+            Position current = queue.removeFirst();
+            seen += 1;
+            int[][] deltas = new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+            for (int[] delta : deltas) {
+                int nx = current.x + delta[0];
+                int ny = current.y + delta[1];
+                if (!inBounds(nx, ny) || visited[nx][ny]) {
+                    continue;
+                }
+                if (world[nx][ny].equals(Tileset.FLOOR)) {
+                    visited[nx][ny] = true;
+                    queue.add(new Position(nx, ny));
+                }
+            }
+        }
+        return seen == total;
+    }
+
+    private Position firstFloor() {
+        for (int x = 0; x < WIDTH; x += 1) {
+            for (int y = 0; y < HEIGHT; y += 1) {
+                if (world[x][y].equals(Tileset.FLOOR)) {
+                    return new Position(x, y);
+                }
+            }
+        }
+        return null;
     }
 
     private void addPerimeterWalls() {
