@@ -1,6 +1,9 @@
 package tileengine;
 
 import java.awt.Color;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Contains constant tile objects, to avoid having to remake the same tiles in different parts of
@@ -17,11 +20,44 @@ import java.awt.Color;
  */
 
 public class Tileset {
-    public static final TETile AVATAR = new TETile('@', Color.white, Color.black, "you", 0);
-    public static final TETile WALL = new TETile('#', new Color(216, 128, 128), Color.darkGray,
+
+    // Added to avoid having to hard code filepaths to assets
+    private static String assetPath(String filename) {
+        URL url = Tileset.class.getClassLoader().getResource("tiles/" + filename);
+        if (url != null) {
+            return url.getFile();
+        }
+        Path local = Paths.get("assets", "tiles", filename).toAbsolutePath();
+        return local.toString();
+    }
+
+
+    /*public static final TETile WALL = new TETile('#', new Color(216, 128, 128), Color.darkGray,
             "wall", 1);
+
     public static final TETile FLOOR = new TETile('·', new Color(128, 192, 128), Color.black, "floor", 2);
-    public static final TETile NOTHING = new TETile(' ', Color.black, Color.black, "nothing", 3);
+     */
+    public static final TETile WALL = new TETile('#', new Color(196, 178, 158),
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_base.png", 1);
+
+    public static final TETile BACK_WALL = new TETile('#', new Color(196, 178, 158),
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_base.png", 1);
+    public static final TETile FRONT_WALL = new TETile('#', new Color(196, 178, 158),
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_base.png", 1);
+    public static final TETile LEFT_WALL = new TETile('#', new Color(196, 178, 158),
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_5.png", 1);
+
+    public static final TETile RIGHT_WALL = new TETile('#', new Color(196, 178, 158),
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_5.png", 1);
+    public static final TETile BACK_WALL_TOP = new TETile('#', new Color(196, 178, 158),
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_cap.png", 1);
+    public static final TETile FRONT_WALL_TOP = new TETile('#', new Color(196, 178, 158),
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_cap.png", 1);
+
+    public static final TETile FLOOR = new TETile('·', new Color(214, 193, 170),
+            new Color(74, 63, 52), "cave floor", "assets/tiles/cave_floor_6.png", 2);
+    public static final TETile NOTHING = new TETile(' ', new Color(214, 193, 170),
+            new Color(74, 63, 52), "nothing", "assets/tiles/void.png", 3);
     public static final TETile GRASS = new TETile('"', Color.green, Color.black, "grass", 4);
     public static final TETile WATER = new TETile('≈', Color.blue, Color.black, "water", 5);
     public static final TETile FLOWER = new TETile('❀', Color.magenta, Color.pink, "flower", 6);
@@ -34,6 +70,94 @@ public class Tileset {
     public static final TETile TREE = new TETile('♠', Color.green, Color.black, "tree", 11);
 
     public static final TETile CELL = new TETile('█', Color.white, Color.black, "cell", 12);
+
+
+//    public static final TETile AVATAR_UP = new TETile(' ', new Color(240, 234, 214),
+//            new Color(46, 38, 33), "you", assetPath("avatar_up.png"), 0);
+//    public static final TETile AVATAR_DOWN = new TETile(' ', new Color(240, 234, 214),
+//            new Color(46, 38, 33), "you", assetPath("avatar_down.png"), 13);
+//    public static final TETile AVATAR_LEFT = new TETile(' ', new Color(240, 234, 214),
+//            new Color(46, 38, 33), "you", assetPath("avatar_left.png"), 14);
+//    public static final TETile AVATAR_RIGHT = new TETile(' ', new Color(240, 234, 214),
+//            new Color(46, 38, 33), "you", assetPath("avatar_right.png"), 15);
+//    public static final TETile AVATAR = AVATAR_DOWN;
+
+
+    public static final TETile[] AVATAR_UP_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_0.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_1.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_2.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_3.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_4.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_5.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_6.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_up_7.png"), 13),
+    };
+    public static final TETile[] AVATAR_DOWN_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_0.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_1.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_2.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_3.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_4.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_5.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_6.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_down_7.png"), 14),
+    };
+    public static final TETile[] AVATAR_LEFT_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_0.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_1.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_2.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_3.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_4.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_5.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_6.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_left_7.png"), 15),
+    };
+    public static final TETile[] AVATAR_RIGHT_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_0.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_1.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_2.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_3.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_4.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_5.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_6.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", assetPath("avatar_right_7.png"), 16),
+    };
+
+
+
 }
 
 

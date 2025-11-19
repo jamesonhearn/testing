@@ -68,7 +68,7 @@ public class TERenderer {
      * given in units of tiles.
      *
      *              positions   xOffset |xOffset+1|xOffset+2| .... |xOffset+world.length
-     *                     
+     *
      * startY+world[0].length   [0][M-1] | [1][M-1] | [2][M-1] | .... | [N-1][M-1]
      *                    ...    ......  |  ......  |  ......  | .... | ......
      *               startY+2    [0][2]  |  [1][2]  |  [2][2]  | .... | [N-1][2]
@@ -93,17 +93,49 @@ public class TERenderer {
      * @param world the 2D TETile[][] array to render
      */
     public void drawTiles(TETile[][] world) {
+        drawBaseTiles(world);
+        drawFrontTiles(world);
+    }
+    public void drawBaseTiles(TETile[][] world) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
         for (int x = 0; x < numXTiles; x += 1) {
             for (int y = 0; y < numYTiles; y += 1) {
-                if (world[x][y] == null) {
+                TETile tile = world[x][y];
+                if (tile == null) {
                     throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
                             + " is null.");
                 }
-                world[x][y].draw(x + xOffset, y + yOffset);
+                if (isFrontLayer(tile)) {
+                    continue;
+                }
+                tile.draw(x + xOffset, y + yOffset);            }
+        }
+    }
+
+    public void drawFrontTiles(TETile[][] world) {
+        int numXTiles = world.length;
+        int numYTiles = world[0].length;
+        for (int x = 0; x < numXTiles; x += 1) {
+            for (int y = 0; y < numYTiles; y += 1) {
+                TETile tile = world[x][y];
+                if (tile == null) {
+                    throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
+                            + " is null.");
+                }
+                if (!isFrontLayer(tile)) {
+                    continue;
+                }
+                tile.draw(x + xOffset, y + yOffset);
             }
         }
+    }
+
+    private boolean isFrontLayer(TETile tile) {
+        return tile == Tileset.FRONT_WALL
+                || tile == Tileset.FRONT_WALL_TOP
+                || tile == Tileset.LEFT_WALL
+                || tile == Tileset.RIGHT_WALL;
     }
 
     /**

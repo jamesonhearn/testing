@@ -175,7 +175,7 @@ public class Engine {
         //ter.drawMatchingTiles(world, tile -> !tile.equals(Tileset.LEFT_WALL));
         ter.drawBaseTiles(world);
         drawAvatar();
-        ter.drawFrontWalls(world);
+        ter.drawFrontTiles(world);
         //ter.drawMatchingTiles(world, tile -> tile.equals(Tileset.LEFT_WALL));
         drawHud();
         StdDraw.show();
