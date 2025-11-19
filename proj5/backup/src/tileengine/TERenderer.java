@@ -18,15 +18,6 @@ public class TERenderer {
     private int xOffset;
     private int yOffset;
 
-
-    private int avatarX = -1;
-    private int avatarY = -1;
-
-    public void setAvatarPosition(int x, int y) {
-        this.avatarX = x;
-        this.avatarY = y;
-    }
-
     /**
      * Same functionality as the other initialization method. The only difference is that the xOff
      * and yOff parameters will change where the renderFrame method starts drawing. For example,
@@ -108,52 +99,38 @@ public class TERenderer {
     public void drawBaseTiles(TETile[][] world) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
-
-        for (int x = 0; x < numXTiles; x++) {
-            for (int y = 0; y < numYTiles; y++) {
+        for (int x = 0; x < numXTiles; x += 1) {
+            for (int y = 0; y < numYTiles; y += 1) {
                 TETile tile = world[x][y];
-
                 if (tile == null) {
-                    throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
+                    throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
+                            + " is null.");
                 }
-
-                boolean wall = isWall(tile);
-
-                // draw non-wall tiles now
-                // draw walls behind the avatar now
-                if (!wall || y >= avatarY) {
-                    tile.draw(x + xOffset, y + yOffset);
+                if (isFrontLayer(tile)) {
+                    continue;
                 }
-            }
+                tile.draw(x + xOffset, y + yOffset);            }
         }
     }
 
     public void drawFrontTiles(TETile[][] world) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
-
-        for (int x = 0; x < numXTiles; x++) {
-            for (int y = 0; y < numYTiles; y++) {
+        for (int x = 0; x < numXTiles; x += 1) {
+            for (int y = 0; y < numYTiles; y += 1) {
                 TETile tile = world[x][y];
-
                 if (tile == null) {
-                    throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
+                    throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
+                            + " is null.");
                 }
-
-                if (isWall(tile) && y < avatarY) {
-                    tile.draw(x + xOffset, y + yOffset);
+                if (!isFrontLayer(tile)) {
+                    continue;
                 }
+                tile.draw(x + xOffset, y + yOffset);
             }
         }
     }
 
-    private boolean isWall(TETile tile) {
-        return tile == Tileset.FRONT_WALL ||
-                tile == Tileset.BACK_WALL ||
-                tile == Tileset.LEFT_WALL ||
-                tile == Tileset.RIGHT_WALL ||
-                tile == Tileset.FRONT_WALL_TOP;
-    }
     private boolean isFrontLayer(TETile tile) {
         return tile == Tileset.FRONT_WALL
                 || tile == Tileset.FRONT_WALL_TOP

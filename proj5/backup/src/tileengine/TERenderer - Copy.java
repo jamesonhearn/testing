@@ -4,6 +4,7 @@ import edu.princeton.cs.algs4.StdDraw;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.util.function.Predicate;
 
 /**
  * Utility class for rendering tiles. You do not need to modify this file. You're welcome
@@ -17,15 +18,6 @@ public class TERenderer {
     private int height;
     private int xOffset;
     private int yOffset;
-
-
-    private int avatarX = -1;
-    private int avatarY = -1;
-
-    public void setAvatarPosition(int x, int y) {
-        this.avatarX = x;
-        this.avatarY = y;
-    }
 
     /**
      * Same functionality as the other initialization method. The only difference is that the xOff
@@ -77,7 +69,7 @@ public class TERenderer {
      * given in units of tiles.
      *
      *              positions   xOffset |xOffset+1|xOffset+2| .... |xOffset+world.length
-     *
+     *                     
      * startY+world[0].length   [0][M-1] | [1][M-1] | [2][M-1] | .... | [N-1][M-1]
      *                    ...    ......  |  ......  |  ......  | .... | ......
      *               startY+2    [0][2]  |  [1][2]  |  [2][2]  | .... | [N-1][2]
@@ -101,66 +93,113 @@ public class TERenderer {
      * Draws all world tiles without clearing the canvas or showing the tiles.
      * @param world the 2D TETile[][] array to render
      */
+//    public void drawTiles(TETile[][] world) {
+//        int numXTiles = world.length;
+//        int numYTiles = world[0].length;
+//        for (int x = 0; x < numXTiles; x += 1) {
+//            for (int y = 0; y < numYTiles; y += 1) {
+//                if (world[x][y] == null) {
+//                    throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
+//                            + " is null.");
+//                }
+//                world[x][y].draw(x + xOffset, y + yOffset);
+//            }
+//        }
+//    }
+    /**
+     * Swapped out base method for split methods - draw base world and draw front objects separate
+     * Calls drawBaseTiles and drawFrontWalls, allows splitting when objects are rendered in game
+     * allows layering in front and behind player avatar to create depth illusion
+     * @param world the 2D TETile[][] array to render
+    */
     public void drawTiles(TETile[][] world) {
         drawBaseTiles(world);
-        drawFrontTiles(world);
+        drawFrontWalls(world);
     }
+
+    /**
+     * Uses same base logic as original drawTiles, but explicitly skips any tiles that return
+     * false on isFrontWall (will need to generalize this to allow other objects)
+     * @param world the 2D TETile[][] array to render
+     */
     public void drawBaseTiles(TETile[][] world) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
-
-        for (int x = 0; x < numXTiles; x++) {
-            for (int y = 0; y < numYTiles; y++) {
+        for (int x = 0; x < numXTiles; x += 1) {
+            for (int y = 0; y < numYTiles; y += 1) {
+                if (world[x][y] == null) {
+                    throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
+                            + " is null.");
+                }
                 TETile tile = world[x][y];
-
-                if (tile == null) {
-                    throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
+                if (isFrontWall(tile)) {
+                    continue;
                 }
 
-                boolean wall = isWall(tile);
-
-                // draw non-wall tiles now
-                // draw walls behind the avatar now
-                if (!wall || y >= avatarY) {
-                    tile.draw(x + xOffset, y + yOffset);
+                double height = tile.renderHeight();
+                if (tile == Tileset.BACK_WALL && blocksAbove(world, x, y)) {
+                    height = 1.0;
                 }
+
+                tile.draw(x + xOffset, y + yOffset, tile.renderWidth(), height);
             }
         }
     }
 
-    public void drawFrontTiles(TETile[][] world) {
+    /**
+     * Reversed logic of drawBaseTiles - only draws frontWall tiles
+     * @param world
+     */
+    public void drawFrontWalls(TETile[][] world) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
+        for (int x = 0; x < numXTiles; x += 1) {
+            for (int y = 0; y < numYTiles; y += 1) {
+                if (world[x][y] == null) {
+                    throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
+                            + " is null.");
+                }
 
-        for (int x = 0; x < numXTiles; x++) {
-            for (int y = 0; y < numYTiles; y++) {
                 TETile tile = world[x][y];
-
-                if (tile == null) {
-                    throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
+                if (!isFrontWall(tile)) {
+                    continue;
                 }
 
-                if (isWall(tile) && y < avatarY) {
-                    tile.draw(x + xOffset, y + yOffset);
-                }
+                tile.draw(x + xOffset, y + yOffset);
             }
         }
     }
 
-    private boolean isWall(TETile tile) {
-        return tile == Tileset.FRONT_WALL ||
-                tile == Tileset.BACK_WALL ||
-                tile == Tileset.LEFT_WALL ||
-                tile == Tileset.RIGHT_WALL ||
-                tile == Tileset.FRONT_WALL_TOP;
-    }
-    private boolean isFrontLayer(TETile tile) {
-        return tile == Tileset.FRONT_WALL
-                || tile == Tileset.FRONT_WALL_TOP
-                || tile == Tileset.LEFT_WALL
-                || tile == Tileset.RIGHT_WALL;
+    // Is there a valid tile above given tile location?
+    private boolean blocksAbove(TETile[][] world, int x, int y) {
+        int numYTiles = world[0].length;
+        if (y + 1 >= numYTiles) {
+            return false;
+        }
+        return world[x][y + 1] != Tileset.NOTHING;
     }
 
+    //Is the tile one of valid options?
+    private boolean isFrontWall(TETile tile) {
+        return tile == Tileset.LEFT_WALL || tile == Tileset.RIGHT_WALL || tile == Tileset.FRONT_WALL;
+    }
+
+
+    public void drawMatchingTiles(TETile[][] world, Predicate<TETile> shouldDraw) {
+        int numXTiles = world.length;
+        int numYTiles = world[0].length;
+        for (int x = 0; x < numXTiles; x += 1) {
+            for (int y = 0; y < numYTiles; y += 1) {
+                TETile tile = world[x][y];
+                if (tile == null) {
+                    throw new IllegalArgumentException("Tile at pos x=" + x + ", y= " +y + " is null");
+                }
+                if (shouldDraw.test(tile)) {
+                    tile.draw(x+xOffset, y + yOffset);
+                }
+            }
+        }
+    }
     /**
      * Resets the font to default settings. You should call this method before drawing any tiles
      * if you changed the pen settings.

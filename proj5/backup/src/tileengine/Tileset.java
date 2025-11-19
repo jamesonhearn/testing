@@ -43,7 +43,7 @@ public class Tileset {
     public static final TETile BACK_WALL = new TETile('#', new Color(196, 178, 158),
             new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_base.png", 1);
     public static final TETile FRONT_WALL = new TETile('#', new Color(196, 178, 158),
-            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_5.png", 1);
+            new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_base.png", 1);
     public static final TETile LEFT_WALL = new TETile('#', new Color(196, 178, 158),
             new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_5.png", 1);
 

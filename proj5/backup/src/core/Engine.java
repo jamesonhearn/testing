@@ -33,8 +33,8 @@ public class Engine {
     private int ticksSinceLastMove = 0;
     private int animFrame = 0; // Assign anim frame to cycle through character pngs
     private int MAX_FRAMES = 8;
-    private static final int WALK_REPEAT_TICKS = 8;
-    private static final int RUN_REPEAT_TICKS = 6;   // ~2× faster
+    private static final int WALK_REPEAT_TICKS = 6;
+    private static final int RUN_REPEAT_TICKS = 4;   // ~2× faster
 
     private static final int WALK_ANIM_TICKS = 4;
     private static final int RUN_ANIM_TICKS = 2;     // faster animation
@@ -43,7 +43,7 @@ public class Engine {
 
     // Added smoothing to animations
     private double drawX =0, drawY = 0;
-    private static final double SMOOTH_SPEED = 0.18;
+    private static final double SMOOTH_SPEED = 0.25;
 
     public Engine() {
         reset();
@@ -172,10 +172,11 @@ public class Engine {
 
     private void renderWithHud() {
         StdDraw.clear(Color.BLACK);
-        ter.setAvatarPosition(avatar.x, avatar.y);
+        //ter.drawMatchingTiles(world, tile -> !tile.equals(Tileset.LEFT_WALL));
         ter.drawBaseTiles(world);
         drawAvatar();
         ter.drawFrontTiles(world);
+        //ter.drawMatchingTiles(world, tile -> tile.equals(Tileset.LEFT_WALL));
         drawHud();
         StdDraw.show();
     }
