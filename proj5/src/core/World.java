@@ -32,6 +32,7 @@ public class World {
             resetWorld();
             carveRoomsWithHallways();
             addPerimeterWalls();
+            correctBackWalls();
             if (allFloorsConnected()) {
                 break;
             }
@@ -309,32 +310,66 @@ public class World {
                 if (!world[x][y].equals(Tileset.FLOOR)) {
                     continue;
                 }
-                for (int dx  = -1; dx <=1; dx+=1) {
-                    for (int dy = -1; dy <= 1; dy+=1) {
-                        if (dx == 0 && dy == 0) {
-                            continue;
-                        }
-                        int nx = x + dx;
-                        int ny = y + dy;
-                        if (inBounds(nx,ny) && world[nx][ny].equals(Tileset.NOTHING)) {
-                            //world[nx][ny] = dy == 1 && dx == 0 ? Tileset.BACK_WALL : Tileset.WALL;
-                            //world[nx][ny] = Tileset.WALL;
-                            world[nx][ny] = selectWallTile(nx,ny);
-                        }
+                int[][] dirs = {
+                        { 0,  1},   // north
+                        { 0, -1},   // south
+                        { 1,  0},   // east
+                        {-1,  0}    // west
+                };
+
+                for (int[] d : dirs) {
+                    int nx = x + d[0];
+                    int ny = y + d[1];
+                    if (inBounds(nx,ny) && world[nx][ny].equals(Tileset.NOTHING)) {
+                        world[nx][ny] = d[1] == 1   // north
+                                ? Tileset.BACK_WALL
+                                : Tileset.LEFT_WALL;
                     }
+                }
+//                for (int dx  = -1; dx <=1; dx+=1) {
+//                    for (int dy = -1; dy <= 1; dy+=1) {
+//                        if (dx == 0 && dy == 0) {
+//                            continue;
+//                        }
+//                        int nx = x + dx;
+//                        int ny = y + dy;
+//                        if (inBounds(nx,ny) && world[nx][ny].equals(Tileset.NOTHING)) {
+//                            world[nx][ny] = dy == 1 && dx == 0 ? Tileset.BACK_WALL : Tileset.LEFT_WALL;
+//                            //world[nx][ny] = Tileset.WALL;
+//                            //world[nx][ny] = selectWallTile(nx,ny);
+//                        }
+//                    }
+//                }
+            }
+        }
+    }
+
+    private void correctBackWalls() {
+        for (int x = 0; x < WIDTH; x++) {
+            for (int y = 0; y < HEIGHT; y++) {
+
+                // Only fix wall tiles
+                if (!world[x][y].equals(Tileset.LEFT_WALL) &&
+                        !world[x][y].equals(Tileset.BACK_WALL)) continue;
+
+                boolean floorBelow =
+                        inBounds(x, y - 1) && world[x][y - 1].equals(Tileset.FLOOR);
+
+                if (floorBelow) {
+                    world[x][y] = Tileset.BACK_WALL;
                 }
             }
         }
     }
 
+
     private TETile selectWallTile(int x, int y) {
         boolean floorNorth = inBounds(x, y+1) && world[x][y+1].equals(Tileset.FLOOR);
+        //boolean wallSouth = inBounds(x, y-1) && (world[x][y-1].equals(Tileset.LEFT_WALL) || world[x][y-1].equals(Tileset.RIGHT_WALL));
         boolean floorSouth = inBounds(x, y-1) && world[x][y-1].equals(Tileset.FLOOR);
         boolean floorEast  = inBounds(x+1, y) && world[x+1][y].equals(Tileset.FLOOR);
         boolean floorWest  = inBounds(x-1, y) && world[x-1][y].equals(Tileset.FLOOR);
 
-        // Floor ABOVE → back wall (wall above floor)
-        if (floorSouth) return Tileset.BACK_WALL;
 
         // Floor BELOW → front wall
         if (floorNorth) return Tileset.BACK_WALL;
@@ -344,6 +379,13 @@ public class World {
 
         // Floor to the left → right-facing wall
         if (floorWest) return Tileset.RIGHT_WALL;
+
+        // Floor ABOVE → back wall (wall above floor)
+        //if (wallSouth) return Tileset.LEFT_WALL;
+
+        // Floor ABOVE → back wall (wall above floor)
+        if (floorSouth) return Tileset.BACK_WALL;
+
 
         // Default (isolated)
         return Tileset.WALL;
