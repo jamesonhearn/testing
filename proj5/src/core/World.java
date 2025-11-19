@@ -334,9 +334,9 @@ public class World {
 //                        int nx = x + dx;
 //                        int ny = y + dy;
 //                        if (inBounds(nx,ny) && world[nx][ny].equals(Tileset.NOTHING)) {
-//                            world[nx][ny] = dy == 1 && dx == 0 ? Tileset.BACK_WALL : Tileset.LEFT_WALL;
+//                            //world[nx][ny] = dy == 1 && dx == 0 ? Tileset.BACK_WALL : Tileset.LEFT_WALL;
 //                            //world[nx][ny] = Tileset.WALL;
-//                            //world[nx][ny] = selectWallTile(nx,ny);
+//                            world[nx][ny] = selectWallTile(nx,ny);
 //                        }
 //                    }
 //                }
@@ -372,7 +372,7 @@ public class World {
 
 
         // Floor BELOW → front wall
-        if (floorNorth) return Tileset.BACK_WALL;
+        if (floorNorth) return Tileset.FRONT_WALL;
 
         // Floor to the right → left-facing wall
         if (floorEast) return Tileset.LEFT_WALL;
