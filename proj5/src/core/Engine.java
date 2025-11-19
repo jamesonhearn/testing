@@ -173,8 +173,9 @@ public class Engine {
     private void renderWithHud() {
         StdDraw.clear(Color.BLACK);
         //ter.drawMatchingTiles(world, tile -> !tile.equals(Tileset.LEFT_WALL));
-        ter.drawTiles(world);    // draws in correct order
+        ter.drawBaseTiles(world);
         drawAvatar();
+        ter.drawFrontWalls(world);
         //ter.drawMatchingTiles(world, tile -> tile.equals(Tileset.LEFT_WALL));
         drawHud();
         StdDraw.show();

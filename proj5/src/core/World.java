@@ -6,10 +6,10 @@ import tileengine.Tileset;
 import java.util.*;
 
 public class World {
-    public static final int WIDTH = 50;
-    public static final int HEIGHT = 50;
-    private static final int MIN_ROOM_SIZE = 6;
-    private static final int MAX_ROOM_SIZE = 15;
+    public static final int WIDTH = 160;
+    public static final int HEIGHT = 80;
+    private static final int MIN_ROOM_SIZE = 12;
+    private static final int MAX_ROOM_SIZE = 25;
     private static final int MAX_ROOM_ATTEMPTS = 1000;
     private static final double TARGET_FILL_RATIO = 0.85;
 
@@ -321,9 +321,19 @@ public class World {
                     int nx = x + d[0];
                     int ny = y + d[1];
                     if (inBounds(nx,ny) && world[nx][ny].equals(Tileset.NOTHING)) {
-                        world[nx][ny] = d[1] == 1   // north
-                                ? Tileset.BACK_WALL
-                                : Tileset.LEFT_WALL;
+                        // Assign tile based on direction
+                        if (d[0] == 0 && d[1] == 1) {
+                            world[nx][ny] = Tileset.BACK_WALL;   // north
+                        } else if (d[0] == 0 && d[1] == -1) {
+                            world[nx][ny] = Tileset.FRONT_WALL;  // south
+                        } else if (d[0] == 1 && d[1] == 0) {
+                            world[nx][ny] = Tileset.RIGHT_WALL;  // east
+                        } else if (d[0] == -1 && d[1] == 0) {
+                            world[nx][ny] = Tileset.LEFT_WALL;   // west
+                        }
+//                        world[nx][ny] = d[1] == 1   // north
+//                                ? Tileset.BACK_WALL
+//                                : Tileset.LEFT_WALL;
                     }
                 }
 //                for (int dx  = -1; dx <=1; dx+=1) {
@@ -340,6 +350,22 @@ public class World {
 //                        }
 //                    }
 //                }
+            }
+        }
+    }
+
+    private void addWallCaps() {
+        for (int x = 0; x < WIDTH; x += 1) {
+            for (int y = 0; y < HEIGHT; y += 1) {
+                if (world[x][y].equals(Tileset.FRONT_WALL)
+                        && inBounds(x, y + 1)
+                        && world[x][y + 1].equals(Tileset.NOTHING)) {
+                    world[x][y + 1] = Tileset.FRONT_WALL_TOP;
+                } else if (world[x][y].equals(Tileset.BACK_WALL)
+                        && inBounds(x, y + 1)
+                        && world[x][y + 1].equals(Tileset.NOTHING)) {
+                    world[x][y + 1] = Tileset.BACK_WALL_TOP;
+                }
             }
         }
     }
