@@ -4,6 +4,8 @@ import edu.princeton.cs.algs4.StdDraw;
 
 import java.awt.Color;
 import java.awt.Font;
+import tileengine.TETile;
+
 
 /**
  * Utility class for rendering tiles. You do not need to modify this file. You're welcome
@@ -22,11 +24,26 @@ public class TERenderer {
     private int avatarX = -1;
     private int avatarY = -1;
 
+
+    private double lightRadius = 3.5;   // tunable
+    public static final TETile DARK =
+            new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
+
+
+    private boolean isLit(int x, int y) {
+        double dx = x - avatarX;
+        double dy = y - avatarY;
+        return dx * dx + dy * dy <= lightRadius * lightRadius;
+    }
+
     public void setAvatarPosition(int x, int y) {
         this.avatarX = x;
         this.avatarY = y;
     }
 
+    public void setLightRadius(double r) {
+        this.lightRadius = r;
+    }
 
     /**
      * Same functionality as the other initialization method. The only difference is that the xOff
@@ -98,6 +115,37 @@ public class TERenderer {
         StdDraw.show();
     }
 
+    private void applyLightingMask(int x, int y) {
+        double dx = x - avatarX;
+        double dy = y - avatarY;
+        double dist = Math.sqrt(dx*dx + dy*dy); // basic trig to get tile distance
+
+        double radius = lightRadius; // define based on distance wanting to see
+
+        // fully lit
+        if (dist <= radius) {
+            return;
+        }
+
+        // fully dark
+        if (dist >= radius + 1.0) {
+            StdDraw.setPenColor(0, 0, 0);
+            StdDraw.filledSquare(x + xOffset + 0.5, y + yOffset + 0.5, 0.5);
+            return;
+        }
+
+        // partial fade (0 to 1)
+        double fade = dist - radius;   // 0.0 → 1.0
+        fade = Math.min(1.0, Math.max(0.0, fade));
+
+        int brightness = (int)(50 * (1.0 - fade)); // 0 (black) to 50 (dim)
+
+        StdDraw.setPenColor(brightness, brightness, brightness);
+        StdDraw.filledSquare(x + xOffset + 0.5, y + yOffset + 0.5, 0.5);
+    }
+
+
+
     /**
      * Draws all world tiles without clearing the canvas or showing the tiles.
      * @param world the 2D TETile[][] array to render
@@ -123,8 +171,13 @@ public class TERenderer {
                 // draw non-wall tiles now
                 // draw walls behind the avatar now
                 if (!wall || y > avatarY) {
-//                    tile.draw(x + xOffset, y + yOffset);
-                    tile.drawSized(x+xOffset, y+yOffset, 1.0);
+                    tile.drawSized(x + xOffset, y + yOffset, 1.0);
+                    applyLightingMask(x, y);
+//                    if (isLit(x, y)) {
+//                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
+//                    } else {
+//                        DARK.drawSized(x + xOffset, y + yOffset, 1.0);
+//                    }
                 }
             }
         }
@@ -143,9 +196,13 @@ public class TERenderer {
                 }
 
                 if (isWall(tile) && y <= avatarY) {
-//                    tile.draw(x + xOffset, y + yOffset);
-                    tile.drawSized(x+xOffset, y+yOffset, 1.0);
-
+                    tile.drawSized(x + xOffset, y + yOffset, 1.0);
+                    applyLightingMask(x, y);
+//                    if (isLit(x, y)) {
+//                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
+//                    } else {
+//                        DARK.drawSized(x + xOffset, y + yOffset, 1.0);
+//                    }
                 }
             }
         }
@@ -156,6 +213,8 @@ public class TERenderer {
                 tile == Tileset.BACK_WALL ||
                 tile == Tileset.LEFT_WALL ||
                 tile == Tileset.RIGHT_WALL ||
+                tile == Tileset.WALL_TOP ||
+                tile == Tileset.WALL_SIDE ||
                 tile == Tileset.FRONT_WALL_TOP;
     }
     private boolean isFrontLayer(TETile tile) {

@@ -33,17 +33,17 @@ public class Engine {
     private int ticksSinceLastMove = 0;
     private int animFrame = 0; // Assign anim frame to cycle through character pngs
     private int MAX_FRAMES = 8;
-    private static final int WALK_REPEAT_TICKS = 4;
+    private static final int WALK_REPEAT_TICKS = 5;
     private static final int RUN_REPEAT_TICKS = 3;   // ~2× faster
 
-    private static final int WALK_ANIM_TICKS = 1;
+    private static final int WALK_ANIM_TICKS = 2;
     private static final int RUN_ANIM_TICKS = 1;     // faster animation
 
     private int animTick = 0;
 
     // Added smoothing to animations
     private double drawX =0, drawY = 0;
-    private static final double SMOOTH_SPEED = 0.20;
+    private static final double SMOOTH_SPEED = 0.40;
 
     public Engine() {
         reset();
@@ -129,7 +129,7 @@ public class Engine {
     }
 
     private void gameLoop() {
-        final int TICK_MS = 10; // create ticks to create consistent movements - hard coded ms delays caused bad inputs. 15ms per frame, but move N ticks
+        final int TICK_MS = 15; // create ticks to create consistent movements - hard coded ms delays caused bad inputs. 15ms per frame, but move N ticks
 
         while (true) {
             renderWithHud();

@@ -305,42 +305,122 @@ public class World {
     }
 
     private void addPerimeterWalls() {
-        int[][] dirsCardinal = {
-                { 0,  1},   // north
-                { 0, -1},   // south
-                { 1,  0},   // east
-                {-1,  0}    // west
-        };
+        TETile[][] updated = world;
 
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
 
-                if (!world[x][y].equals(Tileset.FLOOR)) {
-                    continue;
+                if (!world[x][y].equals(Tileset.FLOOR)) continue;
+
+                boolean upEmpty    = isEmpty(x, y + 1);
+                boolean downEmpty  = isEmpty(x, y - 1);
+                boolean leftEmpty  = isEmpty(x - 1, y);
+                boolean rightEmpty = isEmpty(x + 1, y);
+
+                //
+                // ─────────────── TOP EDGE ───────────────
+                //
+                if (upEmpty) {
+                    // 1 side wall above
+                    if (inBounds(x, y + 1))
+                        updated[x][y + 1] = Tileset.WALL_SIDE;
+
+                    // 1 cap above that
+                    if (inBounds(x, y + 2))
+                        updated[x][y + 2] = Tileset.WALL_TOP;
                 }
 
-                for (int[] d : dirsCardinal) {
-                    int nx = x + d[0];
-                    int ny = y + d[1];
+                //
+                // ─────────────── BOTTOM EDGE ───────────────
+                //
+                if (downEmpty) {
+                    // 1 side wall below
+                    if (inBounds(x, y - 1))
+                        updated[x][y - 1] = Tileset.WALL_TOP;
 
-                    if (inBounds(nx, ny) && world[nx][ny].equals(Tileset.NOTHING)) {
-                        if (d[0] == 0 && d[1] == 1) {
-                            world[nx][ny] = Tileset.BACK_WALL;    // north
-                        } else if (d[0] == 0 && d[1] == -1) {
-                            world[nx][ny] = Tileset.FRONT_WALL;   // south
-                        } else if (d[0] == 1 && d[1] == 0) {
-                            world[nx][ny] = Tileset.RIGHT_WALL;   // east
-                        } else if (d[0] == -1 && d[1] == 0) {
-                            world[nx][ny] = Tileset.LEFT_WALL;    // west
+                    // 1 cap
+                    if (inBounds(x, y - 2) && !world[x][y-2].equals(Tileset.WALL_TOP))
+                        updated[x][y - 2] = Tileset.WALL_SIDE;
+                }
+
+                //
+                // ─────────────── LEFT EDGE + CORNERS ───────────────
+                //
+                if (leftEmpty || world[x-1][y].equals(Tileset.WALL_SIDE) ) {
+
+                    // ░░ TOP-LEFT CORNER: up & left are empty
+                    if (upEmpty) {
+                        // side-left-up
+                        if (inBounds(x - 1, y + 1)) {
+                            updated[x - 1][y + 1] = Tileset.WALL_TOP;
+                            updated[x - 1][y] = Tileset.WALL_TOP;
                         }
+                        // cap above that
+                        if (inBounds(x - 1, y + 2))
+                            updated[x - 1][y + 2] = Tileset.WALL_TOP;
+                    }
+
+                    // ░░ BOTTOM-LEFT CORNER
+                    else if (downEmpty) {
+                        if (inBounds(x - 1, y - 1)){
+                            updated[x - 1][y - 1] = Tileset.WALL_TOP;
+                            updated[x-1][y] = Tileset.WALL_TOP;
+                        }
+
+                        if (inBounds(x - 1, y - 2) && !world[x-1][y-2].equals(Tileset.WALL_TOP))
+                            updated[x - 1][y - 2] = Tileset.WALL_SIDE;
+                    }
+
+                    // ░░ MID-LEFT general case
+                    else {
+                        if (inBounds(x - 1, y))
+                            updated[x - 1][y] = Tileset.WALL_TOP;
+                    }
+                }
+
+                //
+                // ─────────────── RIGHT EDGE + CORNERS (MIRRORED) ───────────────
+                //
+                if (rightEmpty) {
+
+                    // ░░ TOP-RIGHT CORNER
+                    if (upEmpty) {
+                        if (inBounds(x + 1, y + 1)) {
+                            updated[x + 1][y + 1] = Tileset.WALL_TOP;
+                            updated[x + 1][y] = Tileset.WALL_TOP;
+                        }
+                        if (inBounds(x + 1, y + 2))
+                            updated[x + 1][y + 2] = Tileset.WALL_TOP;
+                    }
+
+                    // ░░ BOTTOM-RIGHT CORNER
+                    else if (downEmpty) {
+                        if (inBounds(x + 1, y - 1)) {
+                            updated[x + 1][y] = Tileset.WALL_TOP;
+                            updated[x + 1][y - 1] = Tileset.WALL_TOP;
+                        }
+                        if (inBounds(x + 1, y - 2) && !world[x+1][y-2].equals(Tileset.WALL_TOP))
+                            updated[x + 1][y - 2] = Tileset.WALL_SIDE;
+                    }
+
+                    // ░░ MID-RIGHT
+                    else {
+                        if (inBounds(x + 1, y))
+                            updated[x + 1][y] = Tileset.WALL_TOP;
                     }
                 }
             }
         }
+
+        // commit
+        for (int x = 0; x < WIDTH; x++)
+            for (int y = 0; y < HEIGHT; y++)
+                world[x][y] = updated[x][y];
+    }
+    private boolean isEmpty(int x, int y) {
+        return inBounds(x, y) && world[x][y].equals(Tileset.NOTHING);
     }
 
-
-    
     private void addSecondRingFrontWalls() {
         int[][] dirs = {
                 { 0,  1},
