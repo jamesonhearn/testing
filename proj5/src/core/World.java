@@ -339,8 +339,8 @@ public class World {
                 }
 
                 boolean nothingBelow = isNothing(x, y - 1);
-                boolean nothingLeft = isNothing(x - 1, y);
-                boolean nothingRight = isNothing(x + 1, y);
+                boolean nothingLeft = isEmptyForTopWall(x - 1, y);
+                boolean nothingRight = isEmptyForTopWall(x + 1, y);
                 boolean sideAbove = inBounds(x, y + 1) && sideSnapshot[x][y + 1];
 
                 // Upper Right
@@ -365,7 +365,7 @@ public class World {
 
                 // If side wall directly above, place top wall three above
                 if (sideAbove) {
-                    setIfNothing(x, y + 3, TOP_WALL);
+                    setIfNothingOrSide(x, y + 3, TOP_WALL);
                 }
 
                 // If void below, cap with a top wall just below
@@ -374,20 +374,35 @@ public class World {
                 }
 
                 // If lateral void and not backed by floor beneath that void, add side cap
-                if (nothingLeft && !isFloor(x - 1, y - 1)) {
+                if ((nothingLeft && !isFloor(x - 1, y - 1)) || (nothingLeft && !isFloor(x - 1, y - 2))) {
                     setIfNothing(x - 1, y, TOP_WALL);
                 }
-                if (nothingRight && !isFloor(x + 1, y - 1)) {
+                if ((nothingRight && !isFloor(x + 1, y - 1)) || (nothingRight && !isFloor(x + 1, y - 2))) {
                     setIfNothing(x + 1, y, TOP_WALL);
                 }
+
+//                if ((nothingLeft && topBelow(x-1, y-1)) || (nothingLeft && topBelow(x-1, y-2))){
+//                    setIfNothingOrSide(x - 1, y, TOP_WALL);
+//                }
+//                if ((nothingRight && topBelow(x+1, y-1)) || (nothingRight && topBelow(x+1, y-2))){
+//                    setIfNothingOrSide(x + 1, y, TOP_WALL);
+//                }
+
+
             }
         }
+    }
+
+    private boolean isEmptyForTopWall(int x, int y) {
+        if (!inBounds(x, y)) return true;
+        TETile t = world[x][y];
+        return t.equals(Tileset.NOTHING) || t.equals(SIDE_WALL);
     }
 
     private void placeTopWallWithColumn(int sideX, int y, int direction) {
         setIfNothing(sideX, y, TOP_WALL);
         for (int offset = 1; offset <= 3; offset += 1) {
-            setIfNothing(sideX, y + offset, TOP_WALL);
+            setIfNothingOrSide(sideX, y + offset, TOP_WALL);
         }
         //setIfNothing(sideX + direction, y, TOP_WALL);
     }
@@ -398,11 +413,43 @@ public class World {
         //setIfNothing(sideX + direction, y, TOP_WALL);
     }
 
+    private void setIfNothingOrSide(int x, int y, TETile tile) {
+        if (!inBounds(x, y)) return;
+        if (inBounds(x, y) && (world[x][y].equals(Tileset.NOTHING)) || world[x][y].equals(SIDE_WALL)) {
+            world[x][y] = tile;
+        }
+    }
+
     private void setIfNothing(int x, int y, TETile tile) {
         if (inBounds(x, y) && world[x][y].equals(Tileset.NOTHING)) {
             world[x][y] = tile;
         }
     }
+
+    private void fixTopWallColumns() {
+        for (int x = 0; x < WIDTH; x += 1) {
+            for (int y = 3; y < HEIGHT; y += 1) {
+                if (!world[x][y].equals(TOP_WALL)) {
+                    continue;
+                }
+
+                int yBelow3 = y - 3;
+                if (!world[x][yBelow3].equals(TOP_WALL)) {
+                    continue;
+                }
+
+                // Fill the two tiles between
+                if (world[x][y - 1].equals(Tileset.NOTHING)) {
+                    world[x][y - 1] = TOP_WALL;
+                }
+                if (world[x][y - 2].equals(Tileset.NOTHING)) {
+                    world[x][y - 2] = TOP_WALL;
+                }
+            }
+        }
+    }
+
+
 
     private boolean isNothing(int x, int y) {
         return inBounds(x, y) && world[x][y].equals(Tileset.NOTHING);
@@ -411,6 +458,11 @@ public class World {
     private boolean isFloor(int x, int y) {
         return inBounds(x, y) && world[x][y].equals(Tileset.FLOOR);
     }
+
+    private boolean topBelow(int x, int y) {
+        return inBounds(x, y) && (world[x][y].equals(TOP_WALL));
+    }
+
 
     private boolean allFloorsConnected() {
         Position start = firstFloor();
