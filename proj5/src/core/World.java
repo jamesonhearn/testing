@@ -19,8 +19,8 @@ import java.util.Set;
  * World generator so it can be swapped wholesale later.
  */
 public class World {
-    public static final int WIDTH = 80;
-    public static final int HEIGHT = 40;
+    public static final int WIDTH = 100;
+    public static final int HEIGHT = 50;
 
     private static final int MIN_ROOM_SIZE = 8;
     private static final int MAX_ROOM_SIZE = 16;
@@ -95,9 +95,9 @@ public class World {
             connectToNearest(candidate);
         }
 
-        if (rooms.size() > 1) {
-            addExtraConnectors();
-        }
+        //if (rooms.size() > 1) {
+            //addExtraConnectors();
+        //}
     }
 
     private Room randomRoom() {
@@ -161,23 +161,23 @@ public class World {
         return best;
     }
 
-    private void addExtraConnectors() {
-        int maxConnectorDist = 30; // squared distance
-        List<Room> shuffled = new ArrayList<>(rooms);
-        Collections.shuffle(shuffled, random);
-
-        for (int i = 0; i < shuffled.size() - 1; i++) {
-            Room a = shuffled.get(i);
-            Room b = shuffled.get(i + 1);
-
-            int dx = a.center().x - b.center().x;
-            int dy = a.center().y - b.center().y;
-            int dist = dx * dx + dy * dy;
-            if (dist <= maxConnectorDist) {
-                carveHallway(a, b);
-            }
-        }
-    }
+//    private void addExtraConnectors() {
+//        int maxConnectorDist = 30; // squared distance
+//        List<Room> shuffled = new ArrayList<>(rooms);
+//        Collections.shuffle(shuffled, random);
+//
+//        for (int i = 0; i < shuffled.size() - 1; i++) {
+//            Room a = shuffled.get(i);
+//            Room b = shuffled.get(i + 1);
+//
+//            int dx = a.center().x - b.center().x;
+//            int dy = a.center().y - b.center().y;
+//            int dist = dx * dx + dy * dy;
+//            if (dist <= maxConnectorDist) {
+//                carveHallway(a, b);
+//            }
+//        }
+//    }
 
     /**
      * Attempt to carve a clearance-aware L-shaped hallway. If one orientation fails the
@@ -224,6 +224,9 @@ public class World {
         while (true) {
             boolean atEndpointRoom = (startRoom != null && startRoom.contains(current))
                     || (endRoom != null && endRoom.contains(current));
+            if (!atEndpointRoom && violatesRoomBuffer(current, xStep, yStep, startRoom, endRoom)) {
+                return false;
+            }
             if (!atEndpointRoom && !isClearForHallway(current, currentPath, startRoom, endRoom)) {
                 return false;
             }
@@ -245,6 +248,65 @@ public class World {
         }
         return true;
     }
+
+
+    private boolean violatesRoomBuffer(Position pos, int xStep, int yStep,
+                                       Room startRoom, Room endRoom) {
+        for (Room room : rooms) {
+            if (room == startRoom) {
+                continue;
+            }
+
+            int left = room.left;
+            int right = room.left + room.width - 1;
+            int bottom = room.bottom;
+            int top = room.bottom + room.height - 1;
+
+            boolean inHorizontalBand = pos.y >= bottom && pos.y <= top
+                    && pos.x >= left - 2 && pos.x <= right + 2;
+            boolean inVerticalBand = pos.x >= left && pos.x <= right
+                    && pos.y >= bottom - 3 && pos.y <= top + 3;
+            boolean inBuffer = (inHorizontalBand || inVerticalBand)
+                    && !room.contains(pos);
+
+            if (inBuffer) {
+                if (room == endRoom && isDirectApproach(pos, xStep, yStep, room)) {
+                    continue;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isDirectApproach(Position pos, int xStep, int yStep, Room target) {
+        int left = target.left;
+        int right = target.left + target.width - 1;
+        int bottom = target.bottom;
+        int top = target.bottom + target.height - 1;
+
+        if (xStep != 0) {
+            boolean alignedVertically = pos.y >= bottom && pos.y <= top;
+            if (!alignedVertically) {
+                return false;
+            }
+            return (xStep > 0 && pos.x < left) || (xStep < 0 && pos.x > right);
+        }
+
+        if (yStep != 0) {
+            boolean alignedHorizontally = pos.x >= left && pos.x <= right;
+            if (!alignedHorizontally) {
+                return false;
+            }
+            return (yStep > 0 && pos.y < bottom) || (yStep < 0 && pos.y > top);
+        }
+
+        return false;
+    }
+
+
+
+
 
     private boolean isClearForHallway(Position pos, Set<Position> currentPath,
                                       Room startRoom, Room endRoom) {
@@ -374,11 +436,17 @@ public class World {
                 }
 
                 // If lateral void and not backed by floor beneath that void, add side cap
-                if ((nothingLeft && !isFloor(x - 1, y - 1)) || (nothingLeft && !isFloor(x - 1, y - 2))) {
-                    setIfNothing(x - 1, y, TOP_WALL);
+                if (nothingLeft && isFloor(x - 1, y - 1)) {
+                    continue;
                 }
-                if ((nothingRight && !isFloor(x + 1, y - 1)) || (nothingRight && !isFloor(x + 1, y - 2))) {
-                    setIfNothing(x + 1, y, TOP_WALL);
+                if(nothingRight && isFloor(x + 1, y - 1)) {
+                    continue;
+                }
+                if (nothingLeft && !isFloor(x - 1, y - 2)) {
+                    setIfNothingOrSide(x - 1, y, TOP_WALL);
+                }
+                if(nothingRight && !isFloor(x + 1, y - 2)) {
+                    setIfNothingOrSide(x + 1, y, TOP_WALL);
                 }
 
 //                if ((nothingLeft && topBelow(x-1, y-1)) || (nothingLeft && topBelow(x-1, y-2))){
@@ -392,6 +460,8 @@ public class World {
             }
         }
     }
+
+
 
     private boolean isEmptyForTopWall(int x, int y) {
         if (!inBounds(x, y)) return true;
@@ -459,8 +529,8 @@ public class World {
         return inBounds(x, y) && world[x][y].equals(Tileset.FLOOR);
     }
 
-    private boolean topBelow(int x, int y) {
-        return inBounds(x, y) && (world[x][y].equals(TOP_WALL));
+    private boolean isSide(int x, int y) {
+        return inBounds(x, y) && (world[x][y].equals(SIDE_WALL));
     }
 
 
