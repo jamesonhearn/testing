@@ -12,7 +12,7 @@ import java.awt.Font;
  * allowing scrolling of the screen or tracking the avatar or something similar.
  */
 public class TERenderer {
-    private static final int TILE_SIZE = 16;
+    static final int TILE_SIZE = 24;
     private int width;
     private int height;
     private int xOffset;
@@ -26,6 +26,7 @@ public class TERenderer {
         this.avatarX = x;
         this.avatarY = y;
     }
+
 
     /**
      * Same functionality as the other initialization method. The only difference is that the xOff
@@ -121,8 +122,9 @@ public class TERenderer {
 
                 // draw non-wall tiles now
                 // draw walls behind the avatar now
-                if (!wall || y >= avatarY) {
-                    tile.draw(x + xOffset, y + yOffset);
+                if (!wall || y > avatarY) {
+//                    tile.draw(x + xOffset, y + yOffset);
+                    tile.drawSized(x+xOffset, y+yOffset, 1.0);
                 }
             }
         }
@@ -140,8 +142,10 @@ public class TERenderer {
                     throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
                 }
 
-                if (isWall(tile) && y < avatarY) {
-                    tile.draw(x + xOffset, y + yOffset);
+                if (isWall(tile) && y <= avatarY) {
+//                    tile.draw(x + xOffset, y + yOffset);
+                    tile.drawSized(x+xOffset, y+yOffset, 1.0);
+
                 }
             }
         }

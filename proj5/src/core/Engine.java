@@ -33,17 +33,17 @@ public class Engine {
     private int ticksSinceLastMove = 0;
     private int animFrame = 0; // Assign anim frame to cycle through character pngs
     private int MAX_FRAMES = 8;
-    private static final int WALK_REPEAT_TICKS = 8;
-    private static final int RUN_REPEAT_TICKS = 6;   // ~2× faster
+    private static final int WALK_REPEAT_TICKS = 4;
+    private static final int RUN_REPEAT_TICKS = 3;   // ~2× faster
 
-    private static final int WALK_ANIM_TICKS = 4;
-    private static final int RUN_ANIM_TICKS = 2;     // faster animation
+    private static final int WALK_ANIM_TICKS = 1;
+    private static final int RUN_ANIM_TICKS = 1;     // faster animation
 
     private int animTick = 0;
 
     // Added smoothing to animations
     private double drawX =0, drawY = 0;
-    private static final double SMOOTH_SPEED = 0.18;
+    private static final double SMOOTH_SPEED = 0.20;
 
     public Engine() {
         reset();
@@ -371,6 +371,10 @@ public class Engine {
                 if (world[x][y].equals(Tileset.FLOOR)) {
                     avatar = new Position(x,y);
                     avatarSprite = Tileset.AVATAR_DOWN_FRAMES[0];
+                    // Snap the smoothed draw coordinates to the spawn tile so the avatar
+                    // doesn't glide in from (0,0) on the first frame.
+                    drawX = avatar.x;
+                    drawY = avatar.y;
                     return;
                 }
             }
@@ -444,9 +448,11 @@ public class Engine {
     //Avatar now uses smoothing - placement happens instantly but movement is based on frames
     private void drawAvatar() {
         if (avatar != null && avatarSprite != null) {
+            // When movement stops, snap to the target tile to avoid post-input sliding.
             drawX += (avatar.x - drawX) * SMOOTH_SPEED;
             drawY += (avatar.y - drawY) * SMOOTH_SPEED;
-            avatarSprite.draw(drawX, drawY);
+            double avatarScale = 2;   // adjust this number as desired (0.3–0.6 looks good)
+            avatarSprite.drawScaled(drawX, drawY, avatarScale);
         }
     }
 

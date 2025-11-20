@@ -110,6 +110,40 @@ public class TETile {
         StdDraw.text(x + 0.5, y + 0.5, Character.toString(character()));
     }
 
+    public void drawScaled(double x, double y, double scale) {
+        StdDraw.picture(
+                x + 0.5,
+                y + 0.5,
+                filepath,        // however your TETile stores file path
+                scale,
+                scale
+        );
+    }
+
+    /**
+     * Draws the tile scaled to the provided tileSize in world units. Useful when the
+     * rendering grid wants to enlarge tiles without changing avatar size or image
+     * source assets.
+     * @param x x coordinate
+     * @param y y coordinate
+     * @param tileSize size of one tile in world units
+     */
+    public void drawSized(double x, double y, double tileSize) {
+        if (filepath != null) {
+            try {
+                StdDraw.picture(x + 0.5 * tileSize, y + 0.5 * tileSize, filepath, tileSize, tileSize);
+                return;
+            } catch (IllegalArgumentException e) {
+                // fall back to primitive drawing
+            }
+        }
+
+        StdDraw.setPenColor(backgroundColor);
+        StdDraw.filledSquare(x + 0.5 * tileSize, y + 0.5 * tileSize, 0.5 * tileSize);
+        StdDraw.setPenColor(textColor);
+        StdDraw.text(x + 0.5 * tileSize, y + 0.5 * tileSize, Character.toString(character()));
+    }
+
     /** Character representation of the tile. Used for drawing in text mode.
      * @return character representation
      */
