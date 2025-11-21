@@ -23,7 +23,7 @@ public class TERenderer {
     private int yOffset;
 
 
-    private static final double SMOOTH_SPEED = 0.40;
+    private static final double SMOOTH_SPEED = 0.20;
 
 
     private int avatarX = -1;
@@ -221,7 +221,9 @@ public class TERenderer {
         for (Npc npc : npcManager.npcs()) {
             if (npc.y() > avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(npc.x(), npc.y(), 2.0);
+                npc.currentTile().drawSizedOffset(npc.x(), npc.y(),  npc.renderWidth(),
+                        npc.renderHeight(),
+                        npc.renderYOffset());
             }
         }
     }
@@ -232,7 +234,9 @@ public class TERenderer {
         for (Npc npc : npcManager.npcs()) {
             if (npc.y() <= avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(npc.x(), npc.y(), 2.0);
+                npc.currentTile().drawSizedOffset(npc.x(), npc.y(), npc.renderWidth(),
+                        npc.renderHeight(),
+                        npc.renderYOffset());
             }
         }
     }

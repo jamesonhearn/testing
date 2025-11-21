@@ -114,12 +114,39 @@ public class TETile {
         StdDraw.picture(
                 x + 0.5,
                 y + 0.5,
-                filepath,        // however your TETile stores file path
+                filepath,
                 scale,
                 scale
         );
     }
 
+
+    /**
+     * Draws the tile scaled independently in width/height with an optional y-axis offset.
+     * Useful for oversized sprites that should anchor their feet on the source tile without
+     * visually clipping against adjacent tiles.
+     */
+    public void drawSizedOffset(double x, double y, double width, double height, double yOffset) {
+        if (filepath != null) {
+            try {
+                StdDraw.picture(
+                        x + 0.5 * width,
+                        y + 0.5 * height + yOffset,
+                        filepath,
+                        width,
+                        height
+                );
+                return;
+            } catch (IllegalArgumentException e) {
+                // fall back to primitive drawing
+            }
+        }
+
+        StdDraw.setPenColor(backgroundColor);
+        StdDraw.filledSquare(x + 0.5 * width, y + 0.5 * height + yOffset, 0.5 * height);
+        StdDraw.setPenColor(textColor);
+        StdDraw.text(x + 0.5 * width, y + 0.5 * height + yOffset, Character.toString(character()));
+    }
 
     /**
      * Draws the tile scaled to the provided tileSize in world units. Useful when the

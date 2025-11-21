@@ -18,6 +18,10 @@ public class NpcManager {
     /** Quick membership check for existing NPC tiles. */
     private final Set<Npc.Point> npcPositions = new HashSet<>();
 
+    private static final double DEFAULT_RENDER_WIDTH = 1.0;
+    private static final double DEFAULT_RENDER_HEIGHT = 1.6;
+    private static final double DEFAULT_RENDER_Y_OFFSET = 0.0;
+
     private static final int DEFAULT_NPC_COUNT = 4;
 
     public NpcManager(Random rng) {
@@ -51,6 +55,7 @@ public class NpcManager {
             Npc npc = new Npc(x, y, new Random(rng.nextLong()));
             npc.setDrawX(x);
             npc.setDrawY(y);
+            npc.setRenderSize(DEFAULT_RENDER_WIDTH, DEFAULT_RENDER_HEIGHT, DEFAULT_RENDER_Y_OFFSET);
             npcs.add(npc);
             npcPositions.add(new Npc.Point(x, y));
         }
