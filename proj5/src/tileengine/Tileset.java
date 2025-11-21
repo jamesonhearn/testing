@@ -162,6 +162,53 @@ public class Tileset {
 
 
 
+    public static final TETile SPHEREVIS = new TETile(' ', new Color(240, 234, 214),
+            new Color(46, 38, 33), "spherevis", "assets/avatars/spherevis/spherevis.png", 16);
+
+    public static final TETile[] SLIME_RIGHT_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_0.png", 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_1.png", 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_2.png", 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_3.png", 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_4.png", 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_5.png", 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_6.png", 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_7.png", 16),
+    };
+
+    public static final TETile[] SLIME_UP_FRAMES = SLIME_RIGHT_FRAMES;
+    public static final TETile[] SLIME_DOWN_FRAMES = SLIME_RIGHT_FRAMES;
+
+    public static final TETile[] SLIME_LEFT_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_0_flipped.png", 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_1_flipped.png", 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_2_flipped.png", 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_3_flipped.png", 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_4_flipped.png", 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_5_flipped.png", 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_6_flipped.png", 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "slime", "assets/avatars/slime/slime_walk_7_flipped.png", 15),
+    };
+
+
+
+
 }
 
 

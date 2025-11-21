@@ -9,6 +9,13 @@ import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.util.Locale;
 
+import java.util.Random;
+
+import core.NPC.Npc;
+import core.NPC.NpcManager;
+
+
+
 public class Engine {
     public static final int WIDTH = World.WIDTH;
     public static final int HEIGHT = World.HEIGHT;
@@ -20,6 +27,7 @@ public class Engine {
     private Position avatar;
     private TETile avatarSprite;
     private StringBuilder history;
+    private NpcManager npcManager;
 
     // Game music
     private final MusicPlayer music = new MusicPlayer();
@@ -81,6 +89,7 @@ public class Engine {
         world = null;
         avatar = null;
         history = new StringBuilder();
+        npcManager = null;
     }
     private void showMainMenu() {
         StdDraw.clear(Color.BLACK);
@@ -133,7 +142,7 @@ public class Engine {
 
     private void gameLoop() {
         final int TICK_MS = 15; // create ticks to create consistent movements - hard coded ms delays caused bad inputs. 15ms per frame, but move N ticks
-        //music.playLoop("assets/audio/loop_dropper.wav");
+        //music.playLoop("assets/audio/loop_dropper.wav"); // uncomment when you want to check music
         while (true) {
             renderWithHud();
 
@@ -146,6 +155,9 @@ public class Engine {
             }
 
             handleMovementRealtime(true);
+            if (npcManager != null && avatar != null) {
+                npcManager.tick(world, avatar.x, avatar.y);
+            }
             StdDraw.pause(TICK_MS);
             if (currentDirection != 0) {
                 animTick++;
@@ -178,8 +190,10 @@ public class Engine {
         StdDraw.clear(Color.BLACK);
         ter.setAvatarPosition(avatar.x, avatar.y);
         ter.drawBaseTiles(world);
+        ter.drawNpcs(world, npcManager);
         drawAvatar();
         ter.drawFrontTiles(world);
+        ter.applyFullLightingPass(world);
         drawHud();
         StdDraw.show();
     }
@@ -194,6 +208,13 @@ public class Engine {
         int x = (int) StdDraw.mouseX();
         int y = (int) StdDraw.mouseY();
         if (x >= 0 && x < WIDTH && y >=0 && y<  HEIGHT && world != null) {
+            if (npcManager != null) {
+                for (Npc npc : npcManager.npcs()) {
+                    if (npc.x() == x && npc.y() == y) {
+                        return npc.currentTile().description();
+                    }
+                }
+            }
             if (avatar != null && avatar.x == x && avatar.y == y) {
                 return avatarSprite.description();
             }
@@ -202,6 +223,9 @@ public class Engine {
         return "";
 
     }
+
+
+
 
     // applyCommands for loading saves
     private void applyCommands(String input, boolean recordHistory, boolean allowQuit) {
@@ -366,6 +390,8 @@ public class Engine {
         World generator = new World(seed);
         world = generator.generate();
         placeAvatar();
+        npcManager = new NpcManager(new Random(seed ^ 0x9e3779b97f4a7c15L)); // golden ratio hash, allows nice NPC RNG relative to world RNG
+        npcManager.spawn(world, avatar.x, avatar.y);
     }
 
     // Find first coordiate that is valid placement for player on spawn - just seeks from bottom right currently

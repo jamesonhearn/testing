@@ -1,10 +1,12 @@
 package tileengine;
 
+import core.NPC.Npc;
 import edu.princeton.cs.algs4.StdDraw;
 
 import java.awt.Color;
 import java.awt.Font;
 import tileengine.TETile;
+import core.NPC.NpcManager;
 
 
 /**
@@ -19,6 +21,9 @@ public class TERenderer {
     private int height;
     private int xOffset;
     private int yOffset;
+
+
+    private static final double SMOOTH_SPEED = 0.40;
 
 
     private int avatarX = -1;
@@ -109,6 +114,7 @@ public class TERenderer {
      * the screen in tiles.
      * @param world the 2D TETile[][] array to render
      */
+    // No longer used - split rendering into 2 phases to create depth
     public void renderFrame(TETile[][] world) {
         StdDraw.clear(new Color(0, 0, 0));
         drawTiles(world);
@@ -148,6 +154,19 @@ public class TERenderer {
         }
     }
 
+    public void applyFullLightingPass(TETile[][] world) {
+        int numXTiles = world.length;
+        int numYTiles = world[0].length;
+
+        for (int x = 0; x < numXTiles; x++) {
+            for (int y = 0; y < numYTiles; y++) {
+                applyLightingMask(world, x, y);
+            }
+        }
+    }
+
+
+    // Apply lighting mask to restrict player visibility to circular ring around player avatar
     private void applyLightingMask(TETile[][] world, int x, int y) {
         if (isOccluded(x,y, world)) {
             StdDraw.setPenColor(0,0,0); // Occlude beyond wall
@@ -189,10 +208,30 @@ public class TERenderer {
      * Draws all world tiles without clearing the canvas or showing the tiles.
      * @param world the 2D TETile[][] array to render
      */
+    // Not used
     public void drawTiles(TETile[][] world) {
         drawBaseTiles(world);
         drawFrontTiles(world);
     }
+
+    public void drawNpcs(TETile[][] world, NpcManager npcManager) {
+        if (npcManager == null) {
+            return;
+        }
+        for (Npc npc : npcManager.npcs()) {
+
+
+            npc.updateSmoothPosition(SMOOTH_SPEED);
+
+            // draw the NPC
+            npc.currentTile().drawScaled(npc.drawX(), npc.drawY(), 2.0);
+
+            // apply lighting to the NPC tile
+        }
+    }
+
+
+    // If behind avatar and standable, render (
     public void drawBaseTiles(TETile[][] world) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
@@ -211,7 +250,6 @@ public class TERenderer {
                 // draw walls behind the avatar now
                 if (!wall || y > avatarY) {
                     tile.drawSized(x + xOffset, y + yOffset, 1.0);
-                    applyLightingMask(world, x, y);
 //                    if (isLit(x, y)) {
 //                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
 //                    } else {
@@ -222,6 +260,7 @@ public class TERenderer {
         }
     }
 
+    // If in front of avatar and not a floor/standable tile, render (makes sure floors dont render above player)
     public void drawFrontTiles(TETile[][] world) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
@@ -236,7 +275,6 @@ public class TERenderer {
 
                 if (isWall(tile) && y <= avatarY) {
                     tile.drawSized(x + xOffset, y + yOffset, 1.0);
-                    applyLightingMask(world, x, y);
 //                    if (isLit(x, y)) {
 //                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
 //                    } else {
@@ -247,8 +285,18 @@ public class TERenderer {
         }
     }
 
+    // Blocks movement on non-standable tiles
     private boolean isWall(TETile tile) {
-        return tile != Tileset.FLOOR && tile!= Tileset.ELEVATOR;
+
+        if (tile == null) return true;
+        String d = tile.description();
+        if (d.equals("you") || d.equals("slime") || d.equals("spherevis")){
+            return false;
+        }
+
+
+        return tile != Tileset.FLOOR
+                && tile != Tileset.ELEVATOR;
 //        tile == Tileset.FRONT_WALL ||
 //                tile == Tileset.BACK_WALL ||
 //                tile == Tileset.LEFT_WALL ||
