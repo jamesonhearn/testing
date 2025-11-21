@@ -34,16 +34,6 @@ public class Npc {
     private double drawX;
     private double drawY;
 
-
-    // Visual sizing so oversized sprites can be anchored without clipping.
-    private double renderWidth = 1.0;
-    private double renderHeight = 1.0;
-    private double renderYOffset = 0.0;
-
-
-    public double drawX() { return drawX; }
-    public double drawY() { return drawY; }
-
     public void setDrawX(double x) { this.drawX = x; }
     public void setDrawY(double y) { this.drawY = y; }
 
@@ -65,28 +55,6 @@ public class Npc {
 
     public int y() {
         return y;
-    }
-
-    public double renderWidth() {
-        return renderWidth;
-    }
-
-    public double renderHeight() {
-        return renderHeight;
-    }
-
-    public double renderYOffset() {
-        return renderYOffset;
-    }
-
-    /**
-     * Optional visual sizing hints for tall/wide sprites. Width/height are in tile units; offset
-     * shifts drawing upward to keep feet on the owning tile.
-     */
-    public void setRenderSize(double width, double height, double yOffset) {
-        this.renderWidth = width;
-        this.renderHeight = height;
-        this.renderYOffset = yOffset;
     }
 
     /**
