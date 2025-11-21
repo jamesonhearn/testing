@@ -58,6 +58,8 @@ public class Tileset {
 
     public static final TETile FLOOR = new TETile('·', new Color(214, 193, 170),
             new Color(74, 63, 52), "cave floor", "assets/tiles/cave_floor_6.png", 2);
+    public static final TETile ELEVATOR = new TETile('·', new Color(214, 193, 170),
+            new Color(74, 63, 52), "cave floor", "assets/tiles/elevator.png", 2);
     public static final TETile NOTHING = new TETile(' ', new Color(214, 193, 170),
             new Color(74, 63, 52), "nothing", "assets/tiles/void.png", 3);
     public static final TETile GRASS = new TETile('"', Color.green, Color.black, "grass", 4);

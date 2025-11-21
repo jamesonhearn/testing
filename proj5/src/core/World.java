@@ -34,12 +34,50 @@ public class World {
             addPerimeterWalls();
             //addSecondRingFrontWalls();    // add extra front walls around those walls
             correctBackWalls();
+            placeElevator();
             if (allFloorsConnected()) {
                 break;
             }
         }
         return world;
     }
+
+
+    private void placeElevator() {
+        List<Position> candidates = new ArrayList<>();
+
+        // scan for valid back-wall positions
+        for (int x = 1; x < WIDTH - 1; x++) {
+            for (int y = 1; y < HEIGHT - 1; y++) {
+
+                // must be a back wall
+                if (!world[x][y].equals(Tileset.BACK_WALL))
+                    continue;
+
+                // elevator must sit above a floor
+                if (!world[x][y - 1].equals(Tileset.FLOOR))
+                    continue;
+
+                // optional: avoid corners (looks cleaner)
+                boolean leftWallOrFloor  = !world[x - 1][y].equals(Tileset.NOTHING);
+                boolean rightWallOrFloor = !world[x + 1][y].equals(Tileset.NOTHING);
+                if (!leftWallOrFloor || !rightWallOrFloor)
+                    continue;
+
+                candidates.add(new Position(x, y));
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            // fallback: do nothing
+            return;
+        }
+
+        // pick one random location
+        Position p = candidates.get(new Random().nextInt(candidates.size()));
+        world[p.x][p.y] = Tileset.ELEVATOR;
+    }
+
 
 
     public void initializeVoid() {

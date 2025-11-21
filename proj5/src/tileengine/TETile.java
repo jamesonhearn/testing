@@ -120,6 +120,7 @@ public class TETile {
         );
     }
 
+
     /**
      * Draws the tile scaled to the provided tileSize in world units. Useful when the
      * rendering grid wants to enlarge tiles without changing avatar size or image

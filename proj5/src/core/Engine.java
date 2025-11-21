@@ -21,6 +21,9 @@ public class Engine {
     private TETile avatarSprite;
     private StringBuilder history;
 
+    // Game music
+    private final MusicPlayer music = new MusicPlayer();
+
 
     // Movement variables
     private boolean wDown, aDown, sDown, dDown;
@@ -130,9 +133,10 @@ public class Engine {
 
     private void gameLoop() {
         final int TICK_MS = 15; // create ticks to create consistent movements - hard coded ms delays caused bad inputs. 15ms per frame, but move N ticks
-
+        //music.playLoop("assets/audio/loop_dropper.wav");
         while (true) {
             renderWithHud();
+
 
             while (StdDraw.hasNextKeyTyped()) {
                 char c = Character.toLowerCase(StdDraw.nextKeyTyped());
@@ -209,6 +213,7 @@ public class Engine {
                 if (c == 'q') {
                     saveHistory();
                     if (allowQuit) {
+                        music.stop();
                         System.exit(0);
                     }
                     return;

@@ -25,7 +25,7 @@ public class TERenderer {
     private int avatarY = -1;
 
 
-    private double lightRadius = 3.5;   // tunable
+    private double lightRadius = 8;   // tunable
     public static final TETile DARK =
             new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
 
@@ -114,8 +114,47 @@ public class TERenderer {
         drawTiles(world);
         StdDraw.show();
     }
+    // trying to use bresenhams line algo for LOS
+    private boolean isOccluded(int x2, int y2, TETile[][] world){
+        int x1 = avatarX;
+        int y1 = avatarY;
 
-    private void applyLightingMask(int x, int y) {
+        // get directional distances
+        int dx = Math.abs(x2 - x1);
+        int dy = Math.abs(y2 - y1);
+
+        // are we going Left/Right Up/Down
+        int sx = x1 < x2? 1 : -1;
+        int sy = y1 < y2? 1 : -1;
+        // course correction
+        int err = dx - dy;
+
+        while (true) {
+            if (x1 == x2 && y1 == y2) return false; //base case
+            if (world[x1][y1] == Tileset.WALL_TOP) return true; // hit  wall - occlude beyond
+            int e2 = 2 * err;
+
+            // check if veering right/left more than up/down
+            if (e2 > -dy) {
+                err -= dy;
+                x1 += sx;
+            }
+
+            if (e2 < dx) {
+                err += dx;
+                y1 += sy;
+            }
+
+        }
+    }
+
+    private void applyLightingMask(TETile[][] world, int x, int y) {
+        if (isOccluded(x,y, world)) {
+            StdDraw.setPenColor(0,0,0); // Occlude beyond wall
+            StdDraw.filledSquare(x + xOffset + 0.5, y+yOffset+0.5, 0.5);
+            return;
+        }
+
         double dx = x - avatarX;
         double dy = y - avatarY;
         double dist = Math.sqrt(dx*dx + dy*dy); // basic trig to get tile distance
@@ -172,7 +211,7 @@ public class TERenderer {
                 // draw walls behind the avatar now
                 if (!wall || y > avatarY) {
                     tile.drawSized(x + xOffset, y + yOffset, 1.0);
-                    applyLightingMask(x, y);
+                    applyLightingMask(world, x, y);
 //                    if (isLit(x, y)) {
 //                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
 //                    } else {
@@ -197,7 +236,7 @@ public class TERenderer {
 
                 if (isWall(tile) && y <= avatarY) {
                     tile.drawSized(x + xOffset, y + yOffset, 1.0);
-                    applyLightingMask(x, y);
+                    applyLightingMask(world, x, y);
 //                    if (isLit(x, y)) {
 //                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
 //                    } else {
@@ -209,13 +248,15 @@ public class TERenderer {
     }
 
     private boolean isWall(TETile tile) {
-        return tile == Tileset.FRONT_WALL ||
-                tile == Tileset.BACK_WALL ||
-                tile == Tileset.LEFT_WALL ||
-                tile == Tileset.RIGHT_WALL ||
-                tile == Tileset.WALL_TOP ||
-                tile == Tileset.WALL_SIDE ||
-                tile == Tileset.FRONT_WALL_TOP;
+        return tile != Tileset.FLOOR && tile!= Tileset.ELEVATOR;
+//        tile == Tileset.FRONT_WALL ||
+//                tile == Tileset.BACK_WALL ||
+//                tile == Tileset.LEFT_WALL ||
+//                tile == Tileset.RIGHT_WALL ||
+//                tile == Tileset.WALL_TOP ||
+//                tile == Tileset.ELEVATOR ||
+//                tile == Tileset.WALL_SIDE ||
+//                tile == Tileset.FRONT_WALL_TOP;
     }
     private boolean isFrontLayer(TETile tile) {
         return tile == Tileset.FRONT_WALL
