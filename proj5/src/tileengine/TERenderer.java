@@ -222,6 +222,7 @@ public class TERenderer {
             if (npc.y() > avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
                 npc.currentTile().drawScaled(npc.x(), npc.y(), 2.0);
+                redrawCoverWalls(world, npc.x(), npc.y());
             }
         }
     }
@@ -319,6 +320,38 @@ public class TERenderer {
                 || tile == Tileset.FRONT_WALL_TOP
                 || tile == Tileset.LEFT_WALL
                 || tile == Tileset.RIGHT_WALL;
+    }
+
+
+    // Minimal redraw to occlude tall NPC sprites when they overlap walls above them.
+    private void redrawCoverWalls(TETile[][] world, int npcX, int npcY) {
+        int numXTiles = world.length;
+        int numYTiles = world[0].length;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            int x = npcX + dx;
+
+            for (int dy = -1; dy <= 1; dy++) {
+                int y = npcY + dy;
+
+                if (x < 0 || x >= numXTiles || y < 0 || y >= numYTiles) {
+                    continue;
+                }
+
+                TETile tile = world[x][y];
+                if (tile == null) {
+                    throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
+                }
+
+                if (isTopWall(tile) && y > avatarY) {
+                    tile.drawSized(x + xOffset, y + yOffset, 1.0);
+                }
+            }
+        }
+    }
+
+    private boolean isTopWall(TETile tile) {
+        return tile == Tileset.WALL_TOP || tile == Tileset.FRONT_WALL_TOP;
     }
 
     /**
