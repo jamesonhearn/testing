@@ -214,21 +214,29 @@ public class TERenderer {
         drawFrontTiles(world);
     }
 
-    public void drawNpcs(TETile[][] world, NpcManager npcManager) {
+    public void drawNpcsBack(TETile[][] world, NpcManager npcManager) {
         if (npcManager == null) {
             return;
         }
         for (Npc npc : npcManager.npcs()) {
-
-
-            npc.updateSmoothPosition(SMOOTH_SPEED);
-
-            // draw the NPC
-            npc.currentTile().drawScaled(npc.drawX(), npc.drawY(), 2.0);
-
-            // apply lighting to the NPC tile
+            if (npc.y() > avatarY) {
+                npc.updateSmooth(SMOOTH_SPEED);
+                npc.currentTile().drawScaled(npc.x(), npc.y(), 2.0);
+            }
         }
     }
+    public void drawNpcsFront(TETile[][] world, NpcManager npcManager) {
+        if (npcManager == null) {
+            return;
+        }
+        for (Npc npc : npcManager.npcs()) {
+            if (npc.y() <= avatarY) {
+                npc.updateSmooth(SMOOTH_SPEED);
+                npc.currentTile().drawScaled(npc.x(), npc.y(), 2.0);
+            }
+        }
+    }
+
 
 
     // If behind avatar and standable, render (

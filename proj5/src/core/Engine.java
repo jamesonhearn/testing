@@ -47,10 +47,13 @@ public class Engine {
     private static final int WALK_REPEAT_TICKS = 5;
     private static final int RUN_REPEAT_TICKS = 3;   // ~2× faster
 
-    private static final int WALK_ANIM_TICKS = 2;
-    private static final int RUN_ANIM_TICKS = 1;     // faster animation
+    private static final int AVATAR_ANIM_MS = 60;    // frame change cadence while moving
+    private long lastAnimUpdateMs = 0L;
+    private char lastFacing = 's';
 
-    private int animTick = 0;
+
+    private static final long NPC_SEED_SALT = 0x9e3779b97f4a7c15L;
+
 
     // Added smoothing to animations
     private double drawX =0, drawY = 0;
@@ -158,21 +161,12 @@ public class Engine {
             if (npcManager != null && avatar != null) {
                 npcManager.tick(world, avatar.x, avatar.y);
             }
-            StdDraw.pause(TICK_MS);
-            if (currentDirection != 0) {
-                animTick++;
-
-                int animSpeed = shiftDown ? RUN_ANIM_TICKS : WALK_ANIM_TICKS;
-
-                if (animTick >= animSpeed) {
-                    animFrame = (animFrame + 1) % MAX_FRAMES;
-                    animTick = 0;
-                }
-            } else {
-                // Optional: reset to idle frame when not moving
-                //animFrame = 0; - seems to have broken press based moves, no anim change
-                animTick = 0;
+            if (npcManager != null && avatar != null) {
+                npcManager.tick(world, avatar.x, avatar.y);
             }
+            StdDraw.pause(TICK_MS);
+            tickAvatarAnimation();
+
 
 //            if (!StdDraw.hasNextKeyTyped()) {
 //                StdDraw.pause(15);
@@ -190,8 +184,9 @@ public class Engine {
         StdDraw.clear(Color.BLACK);
         ter.setAvatarPosition(avatar.x, avatar.y);
         ter.drawBaseTiles(world);
-        ter.drawNpcs(world, npcManager);
+        ter.drawNpcsBack(world, npcManager);
         drawAvatar();
+        ter.drawNpcsFront(world, npcManager);
         ter.drawFrontTiles(world);
         ter.applyFullLightingPass(world);
         drawHud();
@@ -223,6 +218,8 @@ public class Engine {
         return "";
 
     }
+
+
 
 
 
@@ -390,7 +387,7 @@ public class Engine {
         World generator = new World(seed);
         world = generator.generate();
         placeAvatar();
-        npcManager = new NpcManager(new Random(seed ^ 0x9e3779b97f4a7c15L)); // golden ratio hash, allows nice NPC RNG relative to world RNG
+        npcManager = new NpcManager(new Random(seed ^ NPC_SEED_SALT)); // golden ratio hash, allows nice NPC RNG relative to world RNG
         npcManager.spawn(world, avatar.x, avatar.y);
     }
 
@@ -418,22 +415,19 @@ public class Engine {
     // validate that canEnter (is FLOOR)
     private void moveAvatar(char direction) {
         Position target = avatar;
+        lastFacing = direction;
         switch (direction) {
             case 'w':
                 target = new Position(avatar.x, avatar.y + 1);
-                avatarSprite = Tileset.AVATAR_UP_FRAMES[animFrame];
                 break;
             case 'a':
                 target = new Position(avatar.x -1, avatar.y);
-                avatarSprite = Tileset.AVATAR_LEFT_FRAMES[animFrame];
                 break;
             case 's':
                 target = new Position(avatar.x, avatar.y - 1);
-                avatarSprite = Tileset.AVATAR_DOWN_FRAMES[animFrame];
                 break;
             case 'd':
                 target = new Position(avatar.x + 1, avatar.y);
-                avatarSprite = Tileset.AVATAR_RIGHT_FRAMES[animFrame];
                 break;
             default:
                 break;
@@ -441,6 +435,7 @@ public class Engine {
         if (canEnter(target)) {
             avatar = target;
         }
+        refreshAvatarSprite();
     }
 
     // True iff valid world position and is FLOOR tile
@@ -448,8 +443,36 @@ public class Engine {
         if (pos.x < 0 || pos.x >= WIDTH || pos.y < 0 || pos.y >= HEIGHT) {
             return false;
         }
+        if (npcManager != null && npcManager.isNpcAt(pos.x, pos.y)) {
+            return false;
+        }
         return world[pos.x][pos.y].equals(Tileset.FLOOR);
     }
+
+    private void tickAvatarAnimation() {
+        long now = System.currentTimeMillis();
+        if (currentDirection != 0) {
+            if (now - lastAnimUpdateMs >= AVATAR_ANIM_MS) {
+                animFrame = (animFrame + 1) % MAX_FRAMES;
+                lastAnimUpdateMs = now;
+                refreshAvatarSprite();
+            }
+        } else {
+            lastAnimUpdateMs = now;
+        }
+    }
+
+    private void refreshAvatarSprite() {
+        char facing = (currentDirection != 0) ? currentDirection : lastFacing;
+        switch (facing) {
+            case 'w' -> avatarSprite = Tileset.AVATAR_UP_FRAMES[animFrame];
+            case 'a' -> avatarSprite = Tileset.AVATAR_LEFT_FRAMES[animFrame];
+            case 'd' -> avatarSprite = Tileset.AVATAR_RIGHT_FRAMES[animFrame];
+            default -> avatarSprite = Tileset.AVATAR_DOWN_FRAMES[animFrame];
+        }
+        lastFacing = facing;
+    }
+
 
     //Load game via save file if exists, restores state via applyCommands
     private void loadGame() {
