@@ -171,7 +171,7 @@ public class Engine {
 
     private void gameLoop() {
         final int TICK_MS = 15; // create ticks to create consistent movements - hard coded ms delays caused bad inputs. 15ms per frame, but move N ticks
-        music.playLoop("assets/audio/load_in_or_safe_zone.wav"); // uncomment when you want to check music
+        music.playLoop("assets/audio/spookycave.wav"); // uncomment when you want to check music
         while (true) {
             renderWithHud();
 
@@ -203,6 +203,7 @@ public class Engine {
     }
 
 
+    //primary method for overlaying world
     private void renderWithHud() {
         StdDraw.clear(Color.BLACK);
         ter.setAvatarPosition(avatar.x, avatar.y);
@@ -217,6 +218,7 @@ public class Engine {
         StdDraw.show();
     }
 
+    //Draw hud (just a bar at the top that displays tile under mouse
     private void drawHud() {
         StdDraw.setPenColor(Color.WHITE);
         double hudY = VIEW_HEIGHT + 1.5;
@@ -305,7 +307,7 @@ public class Engine {
                         if (recordHistory) {
                             history.append(c);
                         }
-                        moveAvatar(c);
+                        //moveAvatar(c);
                     }
                     break;
                 case ':':

@@ -23,7 +23,7 @@ public class AudioPlayer {
             loopClip.open(audio);
 
             FloatControl volume = (FloatControl) loopClip.getControl(FloatControl.Type.MASTER_GAIN);
-            volume.setValue(-20.0f);
+            volume.setValue(-15.0f);
 
             loopClip.loop(Clip.LOOP_CONTINUOUSLY);
             loopClip.start();
@@ -37,7 +37,7 @@ public class AudioPlayer {
     // load however many effects available
     public void loadEffects(String... filepaths) {
         for (String path : filepaths) {
-            Clip clip = loadClip(path, -20.0f);
+            Clip clip = loadClip(path, -15.0f);
             if (clip != null) {
                 effectsClips.add(clip);
             }

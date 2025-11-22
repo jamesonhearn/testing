@@ -1,5 +1,7 @@
 package core.NPC;
 
+import core.Entity;
+
 import tileengine.TETile;
 import tileengine.Tileset;
 
@@ -21,9 +23,9 @@ public class NpcManager {
     private final Random rng;
     private final List<Npc> npcs = new ArrayList<>();
     /** Quick membership check for existing NPC tiles. */
-    private final Set<Npc.Point> npcPositions = new HashSet<>();
+    private final Set<Entity.Position> npcPositions = new HashSet<>();
 
-    private static final int DEFAULT_NPC_COUNT = 20;
+    private static final int DEFAULT_NPC_COUNT = 40;
 
     public NpcManager(Random rng) {
         this.rng = rng;
@@ -50,7 +52,7 @@ public class NpcManager {
             if (x == avoidX && y == avoidY) {
                 continue;
             }
-            if (npcPositions.contains(new Npc.Point(x, y))) {
+            if (npcPositions.contains(new Entity.Position(x, y))) {
                 continue;
             }
             int variant = selectVariant();
@@ -58,7 +60,7 @@ public class NpcManager {
             npc.setDrawX(x);
             npc.setDrawY(y);
             npcs.add(npc);
-            npcPositions.add(new Npc.Point(x, y));
+            npcPositions.add(new Entity.Position(x, y));
         }
     }
 
@@ -66,32 +68,34 @@ public class NpcManager {
      * Advance all NPCs by one tick with simple collision against walls, avatar, and each other.
      */
     public void tick(TETile[][] world, int avatarX, int avatarY) {
-        Set<Npc.Point> occupied = buildOccupiedSet(avatarX, avatarY);
+        Set<Entity.Position> occupied = buildOccupiedSet(avatarX, avatarY);
+        WorldView sharedView = new WorldView(world, new Entity.Position(avatarX, avatarY), occupied);
 
         for (Npc npc : npcs) {
-            Npc.Point previous = new Npc.Point(npc.x(), npc.y());
+            Entity.Position previous = new Entity.Position(npc.x(), npc.y());
             occupied.remove(previous);
             npcPositions.remove(previous);
 
-            npc.tick(world, occupied);
+            npc.tick(sharedView);
 
-            Npc.Point updated = new Npc.Point(npc.x(), npc.y());
+            Entity.Position updated = new Entity.Position(npc.x(), npc.y());
             npcPositions.add(updated);
             occupied.add(updated);
         }
     }
 
-    private Set<Npc.Point> buildOccupiedSet(int avatarX, int avatarY) {
-        Set<Npc.Point> occupied = new HashSet<>(npcPositions);
-        occupied.add(new Npc.Point(avatarX, avatarY));
+    private Set<Entity.Position> buildOccupiedSet(int avatarX, int avatarY) {
+        Set<Entity.Position> occupied = new HashSet<>(npcPositions);
+        occupied.add(new Entity.Position(avatarX, avatarY));
         return occupied;
     }
 
     /**
      * True when any NPC currently sits on the requested tile.
      */
-    public boolean isNpcAt(int x, int y) {
-        return npcPositions.contains(new Npc.Point(x, y));
+    public boolean isNpcAt(int x, int y)
+    {
+        return npcPositions.contains(new Entity.Position(x, y));
     }
 
     private int selectVariant() {

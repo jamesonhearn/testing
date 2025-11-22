@@ -1,14 +1,13 @@
 package core.NPC;
 
-import core.NPC.NpcManager;
+import core.AiBehavior;
+import core.Direction;
+import core.Entity;
 
 import tileengine.TETile;
 import tileengine.Tileset;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.EnumMap;
 import java.util.Random;
 import java.util.Set;
 
@@ -17,17 +16,18 @@ import java.util.Set;
  * Instances are updated by {@link NpcManager} and rendered directly by the engine
  * between the base and front tile layers.
  */
-public class Npc {
+public class Npc extends Entity{
     private final Random rng;
-    private int x;
-    private int y;
-    private Direction facing = Direction.DOWN;
     private int animFrame = 0;
     private int animTick = 0;
     private int moveTick = 0;
 
 
     private final Tileset.NpcSpriteSet spriteSet;
+
+    private final EnumMap<State, AiBehavior> behaviors = new EnumMap<>(State.class);
+    private State state = State.IDLE;
+    private AiBehavior activeBehavior;
 
     // Tunables for movement and animation pacing.
     private static final int STEP_INTERVAL = 8;    // ticks between movement attempts
@@ -46,10 +46,13 @@ public class Npc {
 
 
     public Npc(int x, int y, Random rng, Tileset.NpcSpriteSet spriteSet) {
-        this.x = x;
-        this.y = y;
+        super(x, y);
         this.rng = rng;
         this.spriteSet = spriteSet;
+        behaviors.put(State.IDLE, new IdleBehavior());
+        behaviors.put(State.SEEK, new SeekBehavior());
+        behaviors.put(State.ATTACK, new AttackBehavior());
+        switchState(State.IDLE);
     }
 
     public int x() {
@@ -63,7 +66,7 @@ public class Npc {
     /**
      * Advance one tick of NPC simulation: possibly move and advance animation.
      */
-    public void tick(TETile[][] world, Set<Point> occupied) {
+    public void tick(WorldView view) {
         moveTick += 1;
         animTick += 1;
 
@@ -77,34 +80,46 @@ public class Npc {
         }
         moveTick = 0;
 
-        Direction preferred = rng.nextDouble() < 0.8 ? facing : Direction.random(rng);
-        List<Direction> attempts = Direction.shuffled(rng);
-        // Bias toward keeping current heading when possible.
-        attempts.remove(preferred);
-        attempts.add(0, preferred);
+        State desiredState = selectState(view);
+        if (desiredState != state) {
+            switchState(desiredState);
+        }
 
-        for (Direction dir : attempts) {
-            int nx = x + dir.dx;
-            int ny = y + dir.dy;
-            if (!canOccupy(world, occupied, nx, ny)) {
-                continue;
-            }
-            facing = dir;
+        activeBehavior.onTick(this, view);
+        Direction move = activeBehavior.desiredMove();
+        if (move == null) {
+            return;
+        }
+        int nx = x + move.dx;
+        int ny = y + move.dy;
+        if (view.isWalkable(nx, ny) && !view.isOccupied(nx, ny)) {
+            facing = move;
             x = nx;
             y = ny;
             return;
         }
     }
 
-    private boolean canOccupy(TETile[][] world, Set<Point> occupied, int nx, int ny) {
-        if (nx < 0 || ny < 0 || nx >= world.length || ny >= world[0].length) {
-            return false;
+    private State selectState(WorldView view) {
+        int dx = Math.abs(view.avatarPosition().x() - x);
+        int dy = Math.abs(view.avatarPosition().y() - y);
+        int manhattan = dx + dy;
+        if (manhattan <= 2) {
+            return State.ATTACK;
         }
-        if (!world[nx][ny].equals(Tileset.FLOOR)) {
-            return false;
+        if (manhattan < 15) {
+            return State.SEEK;
         }
-        return !occupied.contains(new Point(nx, ny));
+        return State.IDLE;
     }
+
+
+    private void switchState(State next) {
+        state = next;
+        activeBehavior = behaviors.get(next);
+        activeBehavior.onEnterState(this);
+    }
+
 
     /**
      * Current animation frame tile based on facing direction.
@@ -118,26 +133,9 @@ public class Npc {
         };
     }
 
-    public record Point(int x, int y) { }
-
-    public enum Direction {
-        UP(0, 1), DOWN(0, -1), LEFT(-1, 0), RIGHT(1, 0);
-        final int dx;
-        final int dy;
-        Direction(int dx, int dy) {
-            this.dx = dx;
-            this.dy = dy;
-        }
-
-        static Direction random(Random rng) {
-            Direction[] values = values();
-            return values[rng.nextInt(values.length)];
-        }
-
-        static List<Direction> shuffled(Random rng) {
-            List<Direction> dirs = new ArrayList<>(Arrays.asList(values()));
-            Collections.shuffle(dirs, rng);
-            return dirs;
-        }
+    private enum State {
+        IDLE,
+        SEEK,
+        ATTACK
     }
 }

@@ -50,7 +50,7 @@ public class TERenderer {
     private int avatarY = -1;
 
 
-    private double lightRadius = 25;   // tunable
+    private double lightRadius = 8;   // tunable
     public static final TETile DARK =
             new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
 
