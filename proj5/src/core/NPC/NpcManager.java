@@ -9,6 +9,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 /**
  * Central coordinator for NPC creation, updates, and rendering helpers.
  */
@@ -18,7 +23,7 @@ public class NpcManager {
     /** Quick membership check for existing NPC tiles. */
     private final Set<Npc.Point> npcPositions = new HashSet<>();
 
-    private static final int DEFAULT_NPC_COUNT = 4;
+    private static final int DEFAULT_NPC_COUNT = 20;
 
     public NpcManager(Random rng) {
         this.rng = rng;
@@ -48,7 +53,8 @@ public class NpcManager {
             if (npcPositions.contains(new Npc.Point(x, y))) {
                 continue;
             }
-            Npc npc = new Npc(x, y, new Random(rng.nextLong()));
+            int variant = selectVariant();
+            Npc npc = new Npc(x, y, new Random(rng.nextLong()), Tileset.loadNpcSpriteSet(variant));
             npc.setDrawX(x);
             npc.setDrawY(y);
             npcs.add(npc);
@@ -87,4 +93,32 @@ public class NpcManager {
     public boolean isNpcAt(int x, int y) {
         return npcPositions.contains(new Npc.Point(x, y));
     }
+
+    private int selectVariant() {
+        List<Integer> variants = availableVariants();
+        if (variants.isEmpty()) {
+            return 0;
+        }
+        return variants.get(rng.nextInt(variants.size()));
+    }
+
+    private List<Integer> availableVariants() {
+        List<Integer> variants = new ArrayList<>();
+        Path npcRoot = Path.of("assets", "avatars", "NPC");
+        try (var paths = Files.list(npcRoot)) {
+            paths.filter(Files::isDirectory)
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> name.matches("\\d+"))
+                    .map(Integer::valueOf)
+                    .sorted()
+                    .forEach(variants::add);
+        } catch (IOException e) {
+            // Fallback to default variant when asset listing fails.
+        }
+        if (variants.isEmpty()) {
+            variants.add(0);
+        }
+        return variants;
+    }
+
 }

@@ -3,10 +3,14 @@ package tileengine;
 import core.NPC.Npc;
 import edu.princeton.cs.algs4.StdDraw;
 
-import java.awt.Color;
-import java.awt.Font;
+import java.awt.*;
+import java.lang.reflect.Field;
+
 import tileengine.TETile;
 import core.NPC.NpcManager;
+
+import javax.swing.*;
+
 
 
 /**
@@ -23,14 +27,30 @@ public class TERenderer {
     private int yOffset;
 
 
-    private static final double SMOOTH_SPEED = 0.40;
+
+    //Trying camera centering
+    private int viewWidth;
+    private int viewHeight;
+    private int hudHeight;
+    private int worldWidth;
+    private int worldHeight;
+    private int viewOriginX;
+    private int viewOriginY;
+
+    private double cameraX = -1;
+    private double cameraY = -1;
+    private static final double CAMERA_SMOOTH = 0.20;
+
+    private static final double SMOOTH_SPEED = 0.10;
+
+
 
 
     private int avatarX = -1;
     private int avatarY = -1;
 
 
-    private double lightRadius = 8;   // tunable
+    private double lightRadius = 25;   // tunable
     public static final TETile DARK =
             new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
 
@@ -44,27 +64,134 @@ public class TERenderer {
     public void setAvatarPosition(int x, int y) {
         this.avatarX = x;
         this.avatarY = y;
+        recenterOnAvatar();
     }
+
+    // If camera is not on avatar, set goal as avatar location and recenter
+    public void updateCamera() {
+        if (avatarX < 0 || avatarY < 0) {
+            return;
+        }
+
+        if (cameraX < 0 || cameraY < 0) {
+            cameraX = avatarX;
+            cameraY = avatarY;
+        } else {
+            cameraX += (avatarX - cameraX);
+            cameraY += (avatarY - cameraY);
+        }
+
+        recenterOnAvatar();
+    }
+
+    public int getViewOriginX() {
+        return viewOriginX;
+    }
+
+    public int getViewOriginY() {
+        return viewOriginY;
+    }
+
+    public void configureView(int worldWidth, int worldHeight, int viewWidth, int viewHeight, int hudHeight) {
+        this.worldWidth = worldWidth;
+        this.worldHeight = worldHeight;
+        this.viewWidth = viewWidth;
+        this.viewHeight = viewHeight;
+        this.hudHeight = hudHeight;
+    }
+
+
 
     public void setLightRadius(double r) {
         this.lightRadius = r;
     }
 
-    /**
-     * Same functionality as the other initialization method. The only difference is that the xOff
-     * and yOff parameters will change where the renderFrame method starts drawing. For example,
-     * if you select w = 60, h = 30, xOff = 3, yOff = 4 and then call renderFrame with a
-     * TETile[50][25] array, the renderer will leave 3 tiles blank on the left, 7 tiles blank
-     * on the right, 4 tiles blank on the bottom, and 1 tile blank on the top.
-     * @param w width of the window in tiles
-     * @param h height of the window in tiles.
-     */
+
+
+    private void recenterOnAvatar() {
+        if (viewWidth == 0 || viewHeight == 0 || worldWidth == 0 || worldHeight == 0) {
+            return;
+        }
+
+        int halfViewWidth = viewWidth / 2;
+        int halfViewHeight = viewHeight / 2;
+
+        viewOriginX = clamp(avatarX - halfViewWidth, 0, Math.max(0, worldWidth - viewWidth));
+        viewOriginY = clamp(avatarY - halfViewHeight, 0, Math.max(0, worldHeight - viewHeight));
+    }
+
+    private int clamp(int value, int min, int max) {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+    }
+
+    private boolean inView(int x, int y) {
+        return x >= viewOriginX && x < viewOriginX + viewWidth
+                && y >= viewOriginY && y < viewOriginY + viewHeight;
+    }
+
+
+    public double toScreenX(double worldX) {
+        double halfViewWidth = viewWidth / 2.0;
+        return worldX - cameraX + halfViewWidth + xOffset;
+
+        //double sx = worldX - cameraX + halfViewWidth + xOffset;
+        //return Math.floor(sx*1.0001);
+    }
+
+    public double toScreenY(double worldY) {
+        double halfViewHeight = viewHeight / 2.0;
+        return worldY - cameraY + halfViewHeight + yOffset;
+        //double sy = worldY - cameraY + halfViewHeight + yOffset;
+        //return Math.floor(sy*1.0001);
+    }
+
+
+
+    // Apparently StdDraw doesnt directly expose this, but you can pull it via
+    // the declared field in the Class - here we are just explicitly defining a
+    // custom frame that sits centered relative to user window
+    public static void centerStdDraw() {
+        try {
+            Field f = StdDraw.class.getDeclaredField("frame");
+            f.setAccessible(true);
+            JFrame frame = (JFrame) f.get(null);
+
+            Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+            int x = (screen.width - frame.getWidth()) / 2;
+            int y = (screen.height - frame.getHeight()) / 2;
+            frame.setLocation(x, y);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+            /**
+             * Same functionality as the other initialization method. The only difference is that the xOff
+             * and yOff parameters will change where the renderFrame method starts drawing. For example,
+             * if you select w = 60, h = 30, xOff = 3, yOff = 4 and then call renderFrame with a
+             * TETile[50][25] array, the renderer will leave 3 tiles blank on the left, 7 tiles blank
+             * on the right, 4 tiles blank on the bottom, and 1 tile blank on the top.
+             * @param w width of the window in tiles
+             * @param h height of the window in tiles.
+             */
     public void initialize(int w, int h, int xOff, int yOff) {
         this.width = w;
         this.height = h;
         this.xOffset = xOff;
         this.yOffset = yOff;
+
+        if (viewWidth == 0) {
+            viewWidth = w;
+        }
+        if (viewHeight == 0) {
+            viewHeight = h - hudHeight;
+        }
+
+
         StdDraw.setCanvasSize(width * TILE_SIZE, height * TILE_SIZE);
+        centerStdDraw();
         resetFont();
         StdDraw.setXscale(0, width);
         StdDraw.setYscale(0, height);
@@ -155,11 +282,13 @@ public class TERenderer {
     }
 
     public void applyFullLightingPass(TETile[][] world) {
-        int numXTiles = world.length;
-        int numYTiles = world[0].length;
+        int startX = Math.max(0, viewOriginX);
+        int endX = Math.min(world.length, viewOriginX + viewWidth);
+        int startY = Math.max(0, viewOriginY);
+        int endY = Math.min(world[0].length, viewOriginY + viewHeight);
 
-        for (int x = 0; x < numXTiles; x++) {
-            for (int y = 0; y < numYTiles; y++) {
+        for (int x = startX; x < endX; x++) {
+            for (int y = startY; y < endY; y++) {
                 applyLightingMask(world, x, y);
             }
         }
@@ -170,7 +299,7 @@ public class TERenderer {
     private void applyLightingMask(TETile[][] world, int x, int y) {
         if (isOccluded(x,y, world)) {
             StdDraw.setPenColor(0,0,0); // Occlude beyond wall
-            StdDraw.filledSquare(x + xOffset + 0.5, y+yOffset+0.5, 0.5);
+            StdDraw.filledSquare(toScreenX(x) + 0.5, toScreenY(y) + 0.5, 0.5);
             return;
         }
 
@@ -188,7 +317,7 @@ public class TERenderer {
         // fully dark
         if (dist >= radius + 1.0) {
             StdDraw.setPenColor(0, 0, 0);
-            StdDraw.filledSquare(x + xOffset + 0.5, y + yOffset + 0.5, 0.5);
+            StdDraw.filledSquare(toScreenX(x) + 0.5, toScreenY(y) + 0.5, 0.5);
             return;
         }
 
@@ -199,7 +328,7 @@ public class TERenderer {
         int brightness = (int)(50 * (1.0 - fade)); // 0 (black) to 50 (dim)
 
         StdDraw.setPenColor(brightness, brightness, brightness);
-        StdDraw.filledSquare(x + xOffset + 0.5, y + yOffset + 0.5, 0.5);
+        StdDraw.filledSquare(toScreenX(x) + 0.5, toScreenY(y) + 0.5, 0.5);
     }
 
 
@@ -219,9 +348,12 @@ public class TERenderer {
             return;
         }
         for (Npc npc : npcManager.npcs()) {
+            if (!inView(npc.x(), npc.y())) {
+                continue;
+            }
             if (npc.y() > avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(npc.x(), npc.y(), 2.0);
+                npc.currentTile().drawScaled(toScreenX(npc.x()), toScreenY(npc.y()), 4.0);
                 redrawCoverWalls(world, npc.x(), npc.y());
             }
         }
@@ -233,7 +365,7 @@ public class TERenderer {
         for (Npc npc : npcManager.npcs()) {
             if (npc.y() <= avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(npc.x(), npc.y(), 2.0);
+                npc.currentTile().drawScaled(toScreenX(npc.x()), toScreenY(npc.y()), 4.0);
             }
         }
     }
@@ -245,8 +377,14 @@ public class TERenderer {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
 
-        for (int x = 0; x < numXTiles; x++) {
-            for (int y = 0; y < numYTiles; y++) {
+        int startX = Math.max(0, viewOriginX);
+        int endX = Math.min(world.length, viewOriginX + viewWidth);
+
+        int startY = Math.max(0, viewOriginY);
+        int endY = Math.min(world[0].length, viewOriginY + viewHeight);
+
+        for (int x = startX; x < endX; x++) {
+            for (int y = startY; y < endY; y++) {
                 TETile tile = world[x][y];
 
                 if (tile == null) {
@@ -258,7 +396,7 @@ public class TERenderer {
                 // draw non-wall tiles now
                 // draw walls behind the avatar now
                 if (!wall || y > avatarY) {
-                    tile.drawSized(x + xOffset, y + yOffset, 1.0);
+                    tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
 //                    if (isLit(x, y)) {
 //                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
 //                    } else {
@@ -274,8 +412,14 @@ public class TERenderer {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
 
-        for (int x = 0; x < numXTiles; x++) {
-            for (int y = 0; y < numYTiles; y++) {
+        int startX = Math.max(0, viewOriginX);
+        int endX = Math.min(world.length, viewOriginX + viewWidth);
+
+        int startY = Math.max(0, viewOriginY);
+        int endY = Math.min(world[0].length, viewOriginY + viewHeight);
+
+        for (int x = startX; x < endX; x++) {
+            for (int y = startY; y < endY; y++) {
                 TETile tile = world[x][y];
 
                 if (tile == null) {
@@ -283,7 +427,7 @@ public class TERenderer {
                 }
 
                 if (isWall(tile) && y <= avatarY) {
-                    tile.drawSized(x + xOffset, y + yOffset, 1.0);
+                    tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
 //                    if (isLit(x, y)) {
 //                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
 //                    } else {
@@ -343,8 +487,12 @@ public class TERenderer {
                     throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
                 }
 
+                if (!inView(x,y)) {
+                    continue;
+                }
+
                 if (isTopWall(tile) && y > avatarY) {
-                    tile.drawSized(x + xOffset, y + yOffset, 1.0);
+                    tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
                 }
             }
         }

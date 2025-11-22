@@ -27,9 +27,11 @@ public class Npc {
     private int moveTick = 0;
 
 
+    private final Tileset.NpcSpriteSet spriteSet;
+
     // Tunables for movement and animation pacing.
-    private static final int STEP_INTERVAL = 24;    // ticks between movement attempts
-    private static final int ANIM_INTERVAL = 12;    // ticks between animation frames
+    private static final int STEP_INTERVAL = 8;    // ticks between movement attempts
+    private static final int ANIM_INTERVAL = 3;    // ticks between animation frames
 
     private double drawX;
     private double drawY;
@@ -43,10 +45,11 @@ public class Npc {
     }
 
 
-    public Npc(int x, int y, Random rng) {
+    public Npc(int x, int y, Random rng, Tileset.NpcSpriteSet spriteSet) {
         this.x = x;
         this.y = y;
         this.rng = rng;
+        this.spriteSet = spriteSet;
     }
 
     public int x() {
@@ -65,7 +68,7 @@ public class Npc {
         animTick += 1;
 
         if (animTick >= ANIM_INTERVAL) {
-            animFrame = (animFrame + 1) % Tileset.AVATAR_UP_FRAMES.length;
+            animFrame = (animFrame + 1) % spriteSet.upFrames().length;
             animTick = 0;
         }
 
@@ -108,10 +111,10 @@ public class Npc {
      */
     public TETile currentTile() {
         return switch (facing) {
-            case UP -> Tileset.SLIME_UP_FRAMES[animFrame];
-            case DOWN -> Tileset.SLIME_DOWN_FRAMES[animFrame];
-            case LEFT -> Tileset.SLIME_LEFT_FRAMES[animFrame];
-            case RIGHT -> Tileset.SLIME_RIGHT_FRAMES[animFrame];
+            case UP -> spriteSet.upFrames()[animFrame];
+            case DOWN -> spriteSet.downFrames()[animFrame];
+            case LEFT -> spriteSet.leftFrames()[animFrame];
+            case RIGHT -> spriteSet.rightFrames()[animFrame];
         };
     }
 

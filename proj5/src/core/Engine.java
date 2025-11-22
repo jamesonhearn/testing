@@ -5,7 +5,7 @@ import tileengine.TERenderer;
 import tileengine.TETile;
 import utils.FileUtils;
 
-import java.awt.Color;
+import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.util.Locale;
 
@@ -17,8 +17,15 @@ import core.NPC.NpcManager;
 
 
 public class Engine {
-    public static final int WIDTH = World.WIDTH;
-    public static final int HEIGHT = World.HEIGHT;
+    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+    int screenWidth = (int) screenSize.getWidth();
+    int screenHeight = (int) screenSize.getHeight();
+
+    public static final int WORLD_WIDTH = World.WIDTH;
+    public static final int WORLD_HEIGHT = World.HEIGHT;
+
+    private final int VIEW_WIDTH = screenWidth / 24;
+    private final int VIEW_HEIGHT = screenHeight / 24;
     public static final int HUD_HEIGHT = 3;
     public static final String SAVE_FILE = "save.txt";
 
@@ -29,8 +36,10 @@ public class Engine {
     private StringBuilder history;
     private NpcManager npcManager;
 
-    // Game music
-    private final MusicPlayer music = new MusicPlayer();
+
+
+    // AUDIO STUFF
+    private final AudioPlayer music = new AudioPlayer();
 
 
     // Movement variables
@@ -44,10 +53,10 @@ public class Engine {
     private int ticksSinceLastMove = 0;
     private int animFrame = 0; // Assign anim frame to cycle through character pngs
     private int MAX_FRAMES = 8;
-    private static final int WALK_REPEAT_TICKS = 5;
-    private static final int RUN_REPEAT_TICKS = 3;   // ~2× faster
+    private static final int WALK_REPEAT_TICKS = 2;
+    private static final int RUN_REPEAT_TICKS = 1;   // ~2× faster
 
-    private static final int AVATAR_ANIM_MS = 60;    // frame change cadence while moving
+    private static final int AVATAR_ANIM_MS = 40;    // frame change cadence while moving
     private long lastAnimUpdateMs = 0L;
     private char lastFacing = 's';
 
@@ -60,11 +69,27 @@ public class Engine {
     private static final double SMOOTH_SPEED = 0.40;
 
     public Engine() {
+        music.loadEffects(
+                "assets/audio/step1.wav",
+                "assets/audio/step2.wav",
+                "assets/audio/step3.wav",
+                "assets/audio/step4.wav",
+                "assets/audio/step5.wav",
+                "assets/audio/step6.wav",
+                "assets/audio/step7.wav",
+                "assets/audio/step8.wav",
+                "assets/audio/step9.wav",
+                "assets/audio/step10.wav",
+                "assets/audio/step11.wav",
+                "assets/audio/step12.wav",
+                "assets/audio/step13.wav"
+        );
         reset();
+        ter.configureView(WORLD_WIDTH, WORLD_HEIGHT, VIEW_WIDTH, VIEW_HEIGHT, HUD_HEIGHT);
     }
 
     public void interactWithKeyboard() {
-        ter.initialize(WIDTH, HEIGHT + HUD_HEIGHT);
+        ter.initialize(VIEW_WIDTH, VIEW_HEIGHT + HUD_HEIGHT);
         showMainMenu();
         char selection = waitForMenuSelection();
         if (selection == 'q') {
@@ -97,10 +122,10 @@ public class Engine {
     private void showMainMenu() {
         StdDraw.clear(Color.BLACK);
         StdDraw.setPenColor(Color.WHITE);
-        StdDraw.text(WIDTH/2,HEIGHT/2 + 3, "BYOW");
-        StdDraw.text(WIDTH/2,HEIGHT/2 + 1, "N - New World");
-        StdDraw.text(WIDTH/2,HEIGHT/2, "L - Load");
-        StdDraw.text(WIDTH/2,HEIGHT/2  - 1, "Q - Quit");
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 + 3, "BYOW");
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 + 1, "N - New World");
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, "L - Load");
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0  - 1, "Q - Quit");
         StdDraw.show();
     }
 
@@ -122,8 +147,8 @@ public class Engine {
         while (true) {
             StdDraw.clear(Color.BLACK);
             StdDraw.setPenColor(Color.WHITE);
-            StdDraw.text(WIDTH / 2, HEIGHT / 2 + 2, "Enter Seed, then press S");
-            StdDraw.text(WIDTH / 2, HEIGHT / 2, seedBuilder.toString());
+            StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 + 2, "Enter Seed, then press S");
+            StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, seedBuilder.toString());
             StdDraw.show();
 
 
@@ -143,9 +168,10 @@ public class Engine {
         }
     }
 
+
     private void gameLoop() {
         final int TICK_MS = 15; // create ticks to create consistent movements - hard coded ms delays caused bad inputs. 15ms per frame, but move N ticks
-        //music.playLoop("assets/audio/loop_dropper.wav"); // uncomment when you want to check music
+        music.playLoop("assets/audio/load_in_or_safe_zone.wav"); // uncomment when you want to check music
         while (true) {
             renderWithHud();
 
@@ -158,9 +184,6 @@ public class Engine {
             }
 
             handleMovementRealtime(true);
-            if (npcManager != null && avatar != null) {
-                npcManager.tick(world, avatar.x, avatar.y);
-            }
             if (npcManager != null && avatar != null) {
                 npcManager.tick(world, avatar.x, avatar.y);
             }
@@ -183,6 +206,7 @@ public class Engine {
     private void renderWithHud() {
         StdDraw.clear(Color.BLACK);
         ter.setAvatarPosition(avatar.x, avatar.y);
+        ter.updateCamera();
         ter.drawBaseTiles(world);
         ter.drawNpcsBack(world, npcManager);
         drawAvatar();
@@ -195,25 +219,35 @@ public class Engine {
 
     private void drawHud() {
         StdDraw.setPenColor(Color.WHITE);
-        double hudY = HEIGHT + 1.5;
+        double hudY = VIEW_HEIGHT + 1.5;
         StdDraw.textLeft(1, hudY, tileUnderMouse());
     }
 
     private String tileUnderMouse() {
-        int x = (int) StdDraw.mouseX();
-        int y = (int) StdDraw.mouseY();
-        if (x >= 0 && x < WIDTH && y >=0 && y<  HEIGHT && world != null) {
-            if (npcManager != null) {
-                for (Npc npc : npcManager.npcs()) {
-                    if (npc.x() == x && npc.y() == y) {
-                        return npc.currentTile().description();
-                    }
+        int screenX = (int) StdDraw.mouseX();
+        int screenY = (int) StdDraw.mouseY();
+
+        if (screenX < 0 || screenX >= VIEW_WIDTH || screenY < 0 || screenY >= VIEW_HEIGHT) {
+            return "";
+        }
+
+        int worldX = screenX + ter.getViewOriginX();
+        int worldY = screenY + ter.getViewOriginY();
+
+        if (world == null || worldX < 0 || worldX >= WORLD_WIDTH || worldY < 0 || worldY >= WORLD_HEIGHT) {
+            return "";
+        }
+
+        if (npcManager != null) {
+            for (Npc npc : npcManager.npcs()) {
+                if (npc.x() == worldX && npc.y() == worldY) {
+                    return npc.currentTile().description();
                 }
             }
-            if (avatar != null && avatar.x == x && avatar.y == y) {
+            if (avatar != null && avatar.x == worldX && avatar.y == worldY) {
                 return avatarSprite.description();
             }
-            return world[x][y].description();
+            return world[worldX][worldY].description();
         }
         return "";
 
@@ -323,8 +357,12 @@ public class Engine {
             if (wJust || aJust || sJust || dJust) {
                 // New key press: move immediately
 
-                moveAvatar(currentDirection);
+
+                boolean moved = moveAvatar(currentDirection);
                 if (record) history.append(currentDirection);
+                if (moved) {
+                    music.playRandomEffect();
+                }
                 ticksSinceLastMove = 0;
             } else {
                 // Key held: move based on walk/run speed
@@ -332,8 +370,11 @@ public class Engine {
                 int speedTicks = shiftDown ? RUN_REPEAT_TICKS : WALK_REPEAT_TICKS;
 
                 if (ticksSinceLastMove >= speedTicks) {
-                    moveAvatar(currentDirection);
+                    boolean moved = moveAvatar(currentDirection);
                     if (record) history.append(currentDirection);
+                    if (moved) {
+                        music.playRandomEffect();
+                    }
                     ticksSinceLastMove = 0;
                 }
             }
@@ -394,8 +435,8 @@ public class Engine {
     // Find first coordiate that is valid placement for player on spawn - just seeks from bottom right currently
     // Eventually include ladder/elevator placement
     private void placeAvatar() {
-        for (int x = 0; x < WIDTH; x+=1) {
-            for (int y =0; y < HEIGHT; y+=1) {
+        for (int x = 0; x < WORLD_WIDTH; x+=1) {
+            for (int y =0; y < WORLD_HEIGHT; y+=1) {
                 if (world[x][y].equals(Tileset.FLOOR)) {
                     avatar = new Position(x,y);
                     avatarSprite = Tileset.AVATAR_DOWN_FRAMES[0];
@@ -413,7 +454,7 @@ public class Engine {
 
     // Depending on direction, update avatar position and rotate sprite animation frame
     // validate that canEnter (is FLOOR)
-    private void moveAvatar(char direction) {
+    private boolean moveAvatar(char direction) {
         Position target = avatar;
         lastFacing = direction;
         switch (direction) {
@@ -432,15 +473,18 @@ public class Engine {
             default:
                 break;
         }
+        boolean moved = false;
         if (canEnter(target)) {
             avatar = target;
+            moved = true;
         }
         refreshAvatarSprite();
+        return moved;
     }
 
     // True iff valid world position and is FLOOR tile
     private boolean canEnter(Position pos) {
-        if (pos.x < 0 || pos.x >= WIDTH || pos.y < 0 || pos.y >= HEIGHT) {
+        if (pos.x < 0 || pos.x >= WORLD_WIDTH || pos.y < 0 || pos.y >= WORLD_HEIGHT) {
             return false;
         }
         if (npcManager != null && npcManager.isNpcAt(pos.x, pos.y)) {
@@ -503,11 +547,14 @@ public class Engine {
     private void drawAvatar() {
         if (avatar != null && avatarSprite != null) {
             // When movement stops, snap to the target tile to avoid post-input sliding.
-            drawX += (avatar.x - drawX) * SMOOTH_SPEED;
-            drawY += (avatar.y - drawY) * SMOOTH_SPEED;
+            drawX = avatar.x;
+            drawY = avatar.y;
+//            drawX += (avatar.x - drawX) * SMOOTH_SPEED;
+//            drawY += (avatar.y - drawY) * SMOOTH_SPEED;
             double avatarScale = 2;   // adjust this number as desired (0.3–0.6 looks good)
-            avatarSprite.drawScaled(drawX, drawY, avatarScale);
-        }
+            double screenX = ter.toScreenX(drawX);
+            double screenY = ter.toScreenY(drawY);
+            avatarSprite.drawScaled(screenX, screenY, avatarScale);        }
     }
 
 

@@ -22,6 +22,7 @@ import java.nio.file.Paths;
 public class Tileset {
 
     // Added to avoid having to hard code filepaths to assets
+    // Added another method specific for NPCs - probably redundant
     private static String assetPath(String filename) {
         URL url = Tileset.class.getClassLoader().getResource("tiles/" + filename);
         if (url != null) {
@@ -32,11 +33,45 @@ public class Tileset {
     }
 
 
-    /*public static final TETile WALL = new TETile('#', new Color(216, 128, 128), Color.darkGray,
-            "wall", 1);
+    // Create object for storing full set of directional sprites per avatar
+    public record NpcSpriteSet(TETile[] upFrames, TETile[] downFrames, TETile[] leftFrames,
+                               TETile[] rightFrames) { }
 
-    public static final TETile FLOOR = new TETile('·', new Color(128, 192, 128), Color.black, "floor", 2);
+    // helper path method
+    private static String npcAssetPath(int variant, String filename) {
+        Path local = Paths.get("assets", "avatars", "NPC", String.valueOf(variant), filename)
+                .toAbsolutePath();
+        return local.toString();
+    }
+
+    // creates set of directional frames based on given direction and NPC id
+    private static TETile[] loadNpcDirectionFrames(int variant, String direction, int id) {
+        TETile[] frames = new TETile[8];
+        for (int i = 0; i < frames.length; i++) {
+            frames[i] = new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "npc",
+                    npcAssetPath(variant, "avatar_walk_" + direction + "_" + i + ".png"), id);
+        }
+        return frames;
+    }
+
+    /**
+     * Load walking animation frames for a specific NPC variant.
+     * The assets are expected under assets/avatars/NPC/{variant}/.
      */
+    public static NpcSpriteSet loadNpcSpriteSet(int variant) {
+        TETile[] right = loadNpcDirectionFrames(variant, "right", 16);
+        TETile[] left = loadNpcDirectionFrames(variant, "left", 15);
+        TETile[] up = loadNpcDirectionFrames(variant, "up", 13);
+        TETile[] down = loadNpcDirectionFrames(variant, "down", 14);
+        return new NpcSpriteSet(up, down, left, right);
+    }
+
+
+
+    // I have like 10 iterations worth of wall tiles in here and a lot of methods reference various versions
+    // So while the game only uses 2 PNGs for walls I have a bunch of redundant tiles
+    // Should clean those up sometime
     public static final TETile WALL = new TETile('#', new Color(196, 178, 158),
             new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_base.png", 1);
 
