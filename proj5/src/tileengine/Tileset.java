@@ -69,6 +69,9 @@ public class Tileset {
 
 
 
+
+    public static final TETile LOOT_BAG = new TETile('¤', new Color(221, 176, 61),
+            new Color(74, 63, 52), "dropped item", 99);
     // I have like 10 iterations worth of wall tiles in here and a lot of methods reference various versions
     // So while the game only uses 2 PNGs for walls I have a bunch of redundant tiles
     // Should clean those up sometime

@@ -15,6 +15,20 @@ public class AudioPlayer {
     private long lastFootstepTime = 0;
     private static final long FOOTSTEP_COOLDOWN_MS = 240;   // ~8 steps/sec
 
+    public void play(String filepath) {
+        try {
+            AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
+            loopClip = AudioSystem.getClip();
+            loopClip.open(audio);
+
+            FloatControl volume = (FloatControl) loopClip.getControl(FloatControl.Type.MASTER_GAIN);
+            volume.setValue(-15.0f);
+            loopClip.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void playLoop(String filepath) {
         stopLoop();
         try {

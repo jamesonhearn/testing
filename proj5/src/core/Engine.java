@@ -7,12 +7,20 @@ import utils.FileUtils;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import core.NPC.Npc;
 import core.NPC.NpcManager;
+import core.items.DroppedItem;
+import core.items.Inventory;
+import core.items.Item;
+import core.items.ItemRegistry;
+import core.items.ItemStack;
 
 
 
@@ -36,6 +44,12 @@ public class Engine {
     private StringBuilder history;
     private NpcManager npcManager;
 
+    // Inventory system stuffs
+    private Inventory inventory;
+    private List<DroppedItem> droppedItems;
+    private boolean inventoryVisible;
+    private String hudMessage;
+    private boolean tabDown = false;
 
 
     // AUDIO STUFF
@@ -97,6 +111,7 @@ public class Engine {
         } else if (selection == 'l') {
             loadGame();
             if (world == null) {
+                music.stop();
                 promptSeedAndStart();
             }
             gameLoop();
@@ -118,6 +133,13 @@ public class Engine {
         avatar = null;
         history = new StringBuilder();
         npcManager = null;
+
+        //Reset inventory
+        inventory = new Inventory(16);
+        droppedItems = new ArrayList<>();
+        inventoryVisible = false;
+        hudMessage = "";
+
     }
     private void showMainMenu() {
         StdDraw.clear(Color.BLACK);
@@ -130,6 +152,7 @@ public class Engine {
     }
 
     private char waitForMenuSelection() {
+        music.play("assets/audio/cavegame.wav");
         while (true) {
             if (StdDraw.hasNextKeyTyped()) {
                 char c = Character.toLowerCase(StdDraw.nextKeyTyped());
@@ -177,11 +200,13 @@ public class Engine {
 
 
             while (StdDraw.hasNextKeyTyped()) {
-                char c = Character.toLowerCase(StdDraw.nextKeyTyped());
+                char raw = StdDraw.nextKeyTyped();
+                char c = Character.toLowerCase(raw);
                 if (processCommand(c, true, true)) {
                     return;
                 }
             }
+            updateInventoryToggle();
 
             handleMovementRealtime(true);
             if (npcManager != null && avatar != null) {
@@ -209,12 +234,14 @@ public class Engine {
         ter.setAvatarPosition(avatar.x, avatar.y);
         ter.updateCamera();
         ter.drawBaseTiles(world);
+        ter.drawDroppedItems(droppedItems);
         ter.drawNpcsBack(world, npcManager);
         drawAvatar();
         ter.drawNpcsFront(world, npcManager);
         ter.drawFrontTiles(world);
         ter.applyFullLightingPass(world);
         drawHud();
+        drawInventoryOverlay();
         StdDraw.show();
     }
 
@@ -223,6 +250,10 @@ public class Engine {
         StdDraw.setPenColor(Color.WHITE);
         double hudY = VIEW_HEIGHT + 1.5;
         StdDraw.textLeft(1, hudY, tileUnderMouse());
+        StdDraw.textLeft(15, hudY, "Inventory: " + inventorySummary());
+        if (!hudMessage.isEmpty()) {
+            StdDraw.textRight(VIEW_WIDTH - 1, hudY, hudMessage);
+        }
     }
 
     private String tileUnderMouse() {
@@ -257,7 +288,56 @@ public class Engine {
 
 
 
+    // Inventory rendering
+    private String inventorySummary() {
+        if (inventory == null) {
+            return "Empty";
+        }
+        List<ItemStack> stacks = inventory.nonEmptySlots();
+        if (stacks.isEmpty()) {
+            return "Empty";
+        }
+        return stacks.stream()
+                .limit(3)
+                .map(s -> s.item().name() + " x" + s.quantity())
+                .collect(Collectors.joining(", "));
+    }
 
+    private void drawInventoryOverlay() {
+        if (!inventoryVisible) {
+            return;
+        }
+        StdDraw.setPenColor(new Color(0, 0, 0, 200));
+        StdDraw.filledRectangle(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0);
+        StdDraw.setPenColor(Color.WHITE);
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT - 2, "Inventory (press I to close)");
+
+        double startY = VIEW_HEIGHT - 4;
+        int index = 0;
+        for (ItemStack stack : inventory.nonEmptySlots()) {
+            double y = startY - index * 1.5;
+            if (y < HUD_HEIGHT) {
+                break;
+            }
+            StdDraw.textLeft(2, y, stack.toString());
+            index += 1;
+        }
+        if (index == 0) {
+            StdDraw.textLeft(2, startY, "(empty)");
+        }
+    }
+
+
+    private void updateInventoryToggle() {
+        boolean tab = StdDraw.isKeyPressed(KeyEvent.VK_V);
+
+        // Edge-trigger: only toggle when Tab goes from up -> down
+        if (tab && !tabDown) {
+            inventoryVisible = !inventoryVisible;
+        }
+
+        tabDown = tab;
+    }
 
 
     // applyCommands for loading saves
@@ -310,6 +390,9 @@ public class Engine {
                         //moveAvatar(c);
                     }
                     break;
+                case 'e':
+                    pickupAtAvatar();
+                    break;
                 case ':':
                     awaitingQuit = true;
                     break;
@@ -325,6 +408,7 @@ public class Engine {
     private void handleMovementRealtime(boolean record) {
         // check if shift down and assign T/F for each directional val
         shiftDown = StdDraw.isKeyPressed(KeyEvent.VK_SHIFT);
+        boolean tab = StdDraw.isKeyPressed(KeyEvent.VK_TAB);
         boolean w = StdDraw.isKeyPressed(KeyEvent.VK_W);
         boolean a = StdDraw.isKeyPressed(KeyEvent.VK_A);
         boolean s = StdDraw.isKeyPressed(KeyEvent.VK_S);
@@ -332,6 +416,7 @@ public class Engine {
 
         // Check if any key pressed, used to reset direction
         boolean anyDown = w || a || s || d;
+
 
         // check if press or press and hold (Down vars jut recheck keyEvent)
         boolean wJust = w && !wDown;
@@ -364,6 +449,7 @@ public class Engine {
                 if (record) history.append(currentDirection);
                 if (moved) {
                     music.playRandomEffect();
+                    pickupAtAvatar();
                 }
                 ticksSinceLastMove = 0;
             } else {
@@ -376,6 +462,7 @@ public class Engine {
                     if (record) history.append(currentDirection);
                     if (moved) {
                         music.playRandomEffect();
+                        pickupAtAvatar();
                     }
                     ticksSinceLastMove = 0;
                 }
@@ -417,6 +504,10 @@ public class Engine {
                 StdDraw.pause(15);
             }
         }
+        if (command == 'e') {
+            pickupAtAvatar();
+            return false;
+        }
         if (command == 'w' || command == 's' || command == 'a' || command == 'd'){
             return false;
         }
@@ -432,6 +523,9 @@ public class Engine {
         placeAvatar();
         npcManager = new NpcManager(new Random(seed ^ NPC_SEED_SALT)); // golden ratio hash, allows nice NPC RNG relative to world RNG
         npcManager.spawn(world, avatar.x, avatar.y);
+        // give initial items and random spawn ground loot
+        seedInitialInventory();
+        seedDroppedItems(new Random(seed));
     }
 
     // Find first coordiate that is valid placement for player on spawn - just seeks from bottom right currently
@@ -483,6 +577,71 @@ public class Engine {
         refreshAvatarSprite();
         return moved;
     }
+
+
+    //starting inventory
+    private void seedInitialInventory() {
+        if (inventory == null) {
+            inventory = new Inventory(16);
+        }
+        inventory.add(ItemRegistry.SMALL_POTION, 2);
+        inventory.add(ItemRegistry.TORCH, 1);
+    }
+
+
+    // Randmly place items around the map
+    private void seedDroppedItems(Random random) {
+        if (world == null || avatar == null) {
+            return;
+        }
+        Item[] candidates = new Item[]{ItemRegistry.SMALL_POTION, ItemRegistry.TORCH, ItemRegistry.GEMSTONE};
+        int placed = 0;
+        int attempts = 0;
+        while (placed < 6 && attempts < 400) {
+            int x = random.nextInt(WORLD_WIDTH);
+            int y = random.nextInt(WORLD_HEIGHT);
+            attempts += 1;
+            if (!world[x][y].equals(Tileset.FLOOR) || (x == avatar.x && y == avatar.y)) {
+                continue;
+            }
+            Item choice = candidates[placed % candidates.length];
+            int qty = 1 + random.nextInt(Math.max(1, choice.getMaxStackSize() / 2));
+            droppedItems.add(new DroppedItem(choice, qty, x, y));
+            placed += 1;
+        }
+    }
+
+
+
+    // Pickup item in front of avatar if room in inventory
+    private void pickupAtAvatar() {
+        if (avatar == null || droppedItems == null || inventory == null) {
+            return;
+        }
+        List<DroppedItem> remaining = new ArrayList<>();
+        boolean pickedSomething = false;
+        for (DroppedItem drop : droppedItems) {
+            if (drop.x() == avatar.x && drop.y() == avatar.y) {
+                int leftover = inventory.add(drop.item(), drop.quantity());
+                pickedSomething = true;
+                if (leftover > 0) {
+                    drop.setQuantity(leftover);
+                    remaining.add(drop);
+                    hudMessage = "Inventory full - left " + leftover + " " + drop.item().name();
+                } else {
+                    hudMessage = "Picked up " + drop.item().name();
+                }
+            } else {
+                remaining.add(drop);
+            }
+        }
+        if (!pickedSomething) {
+            hudMessage = "";
+        }
+        droppedItems = remaining;
+    }
+
+
 
     // True iff valid world position and is FLOOR tile
     private boolean canEnter(Position pos) {

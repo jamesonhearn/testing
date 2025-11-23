@@ -8,9 +8,10 @@ import java.lang.reflect.Field;
 
 import tileengine.TETile;
 import core.NPC.NpcManager;
+import core.items.DroppedItem;
 
 import javax.swing.*;
-
+import java.util.List;
 
 
 /**
@@ -367,6 +368,18 @@ public class TERenderer {
                 npc.updateSmooth(SMOOTH_SPEED);
                 npc.currentTile().drawScaled(toScreenX(npc.x()), toScreenY(npc.y()), 4.0);
             }
+        }
+    }
+
+    public void drawDroppedItems(List<DroppedItem> drops) {
+        if (drops == null) {
+            return;
+        }
+        for (DroppedItem drop : drops) {
+            if (!inView(drop.x(), drop.y())) {
+                continue;
+            }
+            Tileset.LOOT_BAG.drawSized(toScreenX(drop.x()), toScreenY(drop.y()), 1.0);
         }
     }
 
