@@ -68,9 +68,11 @@ public class Tileset {
     }
 
 
+    public static final TETile NPC_CORPSE = new TETile('†', new Color(115, 80, 65),
+            new Color(58, 52, 45), "fallen foe", 98);
 
 
-    public static final TETile LOOT_BAG = new TETile('¤', new Color(221, 176, 61),
+    public static final TETile LOOT_BAG = new TETile('X', new Color(221, 176, 61),
             new Color(74, 63, 52), "dropped item", 99);
     // I have like 10 iterations worth of wall tiles in here and a lot of methods reference various versions
     // So while the game only uses 2 PNGs for walls I have a bunch of redundant tiles
@@ -94,25 +96,12 @@ public class Tileset {
     public static final TETile FRONT_WALL_TOP = new TETile('#', new Color(196, 178, 158),
             new Color(58, 52, 45), "cave wall", "assets/tiles/cave_wall_cap.png", 1);
 
-    public static final TETile FLOOR = new TETile('·', new Color(214, 193, 170),
+    public static final TETile FLOOR = new TETile(' ', new Color(214, 193, 170),
             new Color(74, 63, 52), "cave floor", "assets/tiles/cave_floor_6.png", 2);
-    public static final TETile ELEVATOR = new TETile('·', new Color(214, 193, 170),
+    public static final TETile ELEVATOR = new TETile(' ', new Color(214, 193, 170),
             new Color(74, 63, 52), "cave floor", "assets/tiles/elevator.png", 2);
     public static final TETile NOTHING = new TETile(' ', new Color(214, 193, 170),
             new Color(74, 63, 52), "nothing", "assets/tiles/void.png", 3);
-    public static final TETile GRASS = new TETile('"', Color.green, Color.black, "grass", 4);
-    public static final TETile WATER = new TETile('≈', Color.blue, Color.black, "water", 5);
-    public static final TETile FLOWER = new TETile('❀', Color.magenta, Color.pink, "flower", 6);
-    public static final TETile LOCKED_DOOR = new TETile('█', Color.orange, Color.black,
-            "locked door", 7);
-    public static final TETile UNLOCKED_DOOR = new TETile('▢', Color.orange, Color.black,
-            "unlocked door", 8);
-    public static final TETile SAND = new TETile('▒', Color.yellow, Color.black, "sand", 9);
-    public static final TETile MOUNTAIN = new TETile('▲', Color.gray, Color.black, "mountain", 10);
-    public static final TETile TREE = new TETile('♠', Color.green, Color.black, "tree", 11);
-
-    public static final TETile CELL = new TETile('█', Color.white, Color.black, "cell", 12);
-
 
 //    public static final TETile AVATAR_UP = new TETile(' ', new Color(240, 234, 214),
 //            new Color(46, 38, 33), "you", assetPath("avatar_up.png"), 0);

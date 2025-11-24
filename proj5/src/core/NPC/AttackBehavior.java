@@ -18,6 +18,7 @@ public class AttackBehavior implements AiBehavior {
         int dy = view.avatarPosition().y() - owner.y();
         if (Math.abs(dx) + Math.abs(dy) == 1) {
             owner.setFacing(directionToward(dx, dy, owner.facing()));
+            view.damageAvatar(1, owner);
         }
     }
 

@@ -66,4 +66,19 @@ public class Inventory {
         }
         return results;
     }
+
+    /**
+     * Remove and return all stored stacks, leaving the inventory empty.
+     */
+    public List<ItemStack> dumpAll() {
+        List<ItemStack> removed = new ArrayList<>();
+        for (int i = 0; i < slots.size(); i += 1) {
+            ItemStack stack = slots.get(i);
+            if (stack != null && stack.quantity() > 0) {
+                removed.add(stack);
+            }
+            slots.set(i, null);
+        }
+        return removed;
+    }
 }

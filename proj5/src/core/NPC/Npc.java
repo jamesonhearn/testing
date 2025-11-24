@@ -45,14 +45,16 @@ public class Npc extends Entity{
     }
 
 
-    public Npc(int x, int y, Random rng, Tileset.NpcSpriteSet spriteSet) {
-        super(x, y);
+    public Npc(int x, int y, Random rng, Tileset.NpcSpriteSet spriteSet, core.HealthComponent health) {
+        super(x, y, health);
         this.rng = rng;
         this.spriteSet = spriteSet;
         behaviors.put(State.IDLE, new IdleBehavior());
         behaviors.put(State.SEEK, new SeekBehavior());
         behaviors.put(State.ATTACK, new AttackBehavior());
         switchState(State.IDLE);
+        this.drawX = x;
+        this.drawY = y;
     }
 
     public int x() {
@@ -61,6 +63,13 @@ public class Npc extends Entity{
 
     public int y() {
         return y;
+    }
+
+    public double drawX() {
+        return drawX;
+    }
+    public double drawY() {
+        return drawY;
     }
 
     /**

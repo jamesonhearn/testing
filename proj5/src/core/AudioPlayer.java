@@ -36,8 +36,7 @@ public class AudioPlayer {
             loopClip = AudioSystem.getClip();
             loopClip.open(audio);
 
-            FloatControl volume = (FloatControl) loopClip.getControl(FloatControl.Type.MASTER_GAIN);
-            volume.setValue(-15.0f);
+            setVolume(loopClip, -15.0f);
 
             loopClip.loop(Clip.LOOP_CONTINUOUSLY);
             loopClip.start();
@@ -115,6 +114,30 @@ public class AudioPlayer {
         if (loopClip != null) {
             loopClip.close();
             loopClip = null;
+        }
+    }
+
+    public void playThenCallback(String filepath, Runnable onComplete) {
+        try {
+            AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
+            loopClip = AudioSystem.getClip();
+            loopClip.open(audio);
+
+            FloatControl volume = (FloatControl) loopClip.getControl(FloatControl.Type.MASTER_GAIN);
+            volume.setValue(-15.0f);
+
+            loopClip.addLineListener(event -> {
+                if (event.getType() == LineEvent.Type.STOP) {
+                    loopClip.close();
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
+                }
+            });
+
+            loopClip.start();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

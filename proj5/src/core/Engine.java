@@ -39,10 +39,11 @@ public class Engine {
 
     private final TERenderer ter = new TERenderer();
     private TETile[][] world;
-    private Position avatar;
+    private Avatar avatar;
     private TETile avatarSprite;
     private StringBuilder history;
     private NpcManager npcManager;
+    private CombatService combatService;
 
     // Inventory system stuffs
     private Inventory inventory;
@@ -133,6 +134,7 @@ public class Engine {
         avatar = null;
         history = new StringBuilder();
         npcManager = null;
+        combatService = new CombatService();
 
         //Reset inventory
         inventory = new Inventory(16);
@@ -152,8 +154,9 @@ public class Engine {
     }
 
     private char waitForMenuSelection() {
-        music.play("assets/audio/cavegame.wav");
+        music.playThenCallback("assets/audio/cavegame.wav", () -> music.playLoop("assets/audio/main_menu.wav"));
         while (true) {
+
             if (StdDraw.hasNextKeyTyped()) {
                 char c = Character.toLowerCase(StdDraw.nextKeyTyped());
                 if (c == 'n' || c == 'l' || c == 'q') {
@@ -210,8 +213,9 @@ public class Engine {
 
             handleMovementRealtime(true);
             if (npcManager != null && avatar != null) {
-                npcManager.tick(world, avatar.x, avatar.y);
+                npcManager.tick(world, avatar);
             }
+            combatService.tick();
             StdDraw.pause(TICK_MS);
             tickAvatarAnimation();
 
@@ -234,6 +238,7 @@ public class Engine {
         ter.setAvatarPosition(avatar.x, avatar.y);
         ter.updateCamera();
         ter.drawBaseTiles(world);
+        ter.drawCorpses(npcManager == null ? null : npcManager.corpses());
         ter.drawDroppedItems(droppedItems);
         ter.drawNpcsBack(world, npcManager);
         drawAvatar();
@@ -521,7 +526,8 @@ public class Engine {
         World generator = new World(seed);
         world = generator.generate();
         placeAvatar();
-        npcManager = new NpcManager(new Random(seed ^ NPC_SEED_SALT)); // golden ratio hash, allows nice NPC RNG relative to world RNG
+        npcManager = new NpcManager(new Random(seed ^ NPC_SEED_SALT), combatService); // golden ratio hash, allows nice NPC RNG relative to world RNG
+        npcManager.setDeathHandler(this::handleNpcDeath);
         npcManager.spawn(world, avatar.x, avatar.y);
         // give initial items and random spawn ground loot
         seedInitialInventory();
@@ -534,7 +540,11 @@ public class Engine {
         for (int x = 0; x < WORLD_WIDTH; x+=1) {
             for (int y =0; y < WORLD_HEIGHT; y+=1) {
                 if (world[x][y].equals(Tileset.FLOOR)) {
-                    avatar = new Position(x,y);
+                    HealthComponent avatarHealth = new HealthComponent(10, 10, 1, 15);
+                    avatarHealth.addDeathCallback(this::handleAvatarDeath);
+                    avatar = new Avatar(x, y, 3, avatarHealth);
+                    avatar.setSpawnPoint(new Entity.Position(x, y));
+                    combatService.register(avatar);
                     avatarSprite = Tileset.AVATAR_DOWN_FRAMES[0];
                     // Snap the smoothed draw coordinates to the spawn tile so the avatar
                     // doesn't glide in from (0,0) on the first frame.
@@ -551,27 +561,27 @@ public class Engine {
     // Depending on direction, update avatar position and rotate sprite animation frame
     // validate that canEnter (is FLOOR)
     private boolean moveAvatar(char direction) {
-        Position target = avatar;
+        Entity.Position target = avatar.position();
         lastFacing = direction;
         switch (direction) {
             case 'w':
-                target = new Position(avatar.x, avatar.y + 1);
+                target = new Entity.Position(avatar.x, avatar.y + 1);
                 break;
             case 'a':
-                target = new Position(avatar.x -1, avatar.y);
+                target = new Entity.Position(avatar.x -1, avatar.y);
                 break;
             case 's':
-                target = new Position(avatar.x, avatar.y - 1);
+                target = new Entity.Position(avatar.x, avatar.y - 1);
                 break;
             case 'd':
-                target = new Position(avatar.x + 1, avatar.y);
+                target = new Entity.Position(avatar.x + 1, avatar.y);
                 break;
             default:
                 break;
         }
         boolean moved = false;
         if (canEnter(target)) {
-            avatar = target;
+            avatar.setPosition(target.x(),target.y());
             moved = true;
         }
         refreshAvatarSprite();
@@ -644,15 +654,38 @@ public class Engine {
 
 
     // True iff valid world position and is FLOOR tile
-    private boolean canEnter(Position pos) {
-        if (pos.x < 0 || pos.x >= WORLD_WIDTH || pos.y < 0 || pos.y >= WORLD_HEIGHT) {
+    private boolean canEnter(Entity.Position pos) {
+        if (pos.x() < 0 || pos.x() >= WORLD_WIDTH || pos.y() < 0 || pos.y() >= WORLD_HEIGHT) {
             return false;
         }
-        if (npcManager != null && npcManager.isNpcAt(pos.x, pos.y)) {
+        if (npcManager != null && npcManager.isNpcAt(pos.x(), pos.y())) {
             return false;
         }
-        return world[pos.x][pos.y].equals(Tileset.FLOOR);
+        return world[pos.x()][pos.y()].equals(Tileset.FLOOR);
     }
+
+
+    private void handleAvatarDeath(Entity entity) {
+        if (!(entity instanceof Avatar fallen)) {
+            return;
+        }
+        for (core.items.ItemStack stack : inventory.dumpAll()) {
+            droppedItems.add(new DroppedItem(stack.item(), stack.quantity(), fallen.x, fallen.y));
+        }
+        fallen.loseLife();
+        hudMessage = "You died! Lives left: " + fallen.lives();
+        fallen.respawn();
+        drawX = fallen.x;
+        drawY = fallen.y;
+    }
+
+    private void handleNpcDeath(Npc npc) {
+        if (npc == null) {
+            return;
+        }
+        droppedItems.add(new DroppedItem(ItemRegistry.GEMSTONE, 1, npc.x(), npc.y()));
+    }
+
 
     private void tickAvatarAnimation() {
         long now = System.currentTimeMillis();
@@ -729,8 +762,6 @@ public class Engine {
     }
 
 
-    private record Position(int x, int y) {
-    }
 
 
 }

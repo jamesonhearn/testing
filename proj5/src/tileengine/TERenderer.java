@@ -1,5 +1,6 @@
 package tileengine;
 
+import core.NPC.Corpse;
 import core.NPC.Npc;
 import edu.princeton.cs.algs4.StdDraw;
 
@@ -354,7 +355,7 @@ public class TERenderer {
             }
             if (npc.y() > avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(toScreenX(npc.x()), toScreenY(npc.y()), 4.0);
+                npc.currentTile().drawScaled(toScreenX(npc.drawX()), toScreenY(npc.drawY()), 4.0);
                 redrawCoverWalls(world, npc.x(), npc.y());
             }
         }
@@ -366,7 +367,7 @@ public class TERenderer {
         for (Npc npc : npcManager.npcs()) {
             if (npc.y() <= avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(toScreenX(npc.x()), toScreenY(npc.y()), 4.0);
+                npc.currentTile().drawScaled(toScreenX(npc.drawX()), toScreenY(npc.drawY()), 4.0);
             }
         }
     }
@@ -380,6 +381,18 @@ public class TERenderer {
                 continue;
             }
             Tileset.LOOT_BAG.drawSized(toScreenX(drop.x()), toScreenY(drop.y()), 1.0);
+        }
+    }
+
+    public void drawCorpses(List<Corpse> corpses) {
+        if (corpses == null) {
+            return;
+        }
+        for (Corpse corpse : corpses) {
+            if (!inView(corpse.x(), corpse.y())) {
+                continue;
+            }
+            corpse.tile().drawSized(toScreenX(corpse.x()), toScreenY(corpse.y()), 1.0);
         }
     }
 
