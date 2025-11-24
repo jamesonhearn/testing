@@ -34,8 +34,12 @@ public class Tileset {
 
 
     // Create object for storing full set of directional sprites per avatar
-    public record NpcSpriteSet(TETile[] upFrames, TETile[] downFrames, TETile[] leftFrames,
-                               TETile[] rightFrames) { }
+    public record NpcSpriteSet(TETile[] walkUpFrames, TETile[] walkDownFrames,
+                               TETile[] walkLeftFrames, TETile[] walkRightFrames,
+                               TETile[] attackUpFrames, TETile[] attackDownFrames,
+                               TETile[] attackLeftFrames, TETile[] attackRightFrames) { }
+
+
 
     // helper path method
     private static String npcAssetPath(int variant, String filename) {
@@ -44,13 +48,13 @@ public class Tileset {
         return local.toString();
     }
 
-    // creates set of directional frames based on given direction and NPC id
-    private static TETile[] loadNpcDirectionFrames(int variant, String direction, int id) {
+    // creates set of directional frames based on action, direction, and NPC id
+    private static TETile[] loadNpcDirectionFrames(int variant, String action, String direction, int id) {
         TETile[] frames = new TETile[8];
         for (int i = 0; i < frames.length; i++) {
             frames[i] = new TETile(' ', new Color(240, 234, 214),
                     new Color(46, 38, 33), "npc",
-                    npcAssetPath(variant, "avatar_walk_" + direction + "_" + i + ".png"), id);
+                    npcAssetPath(variant, "avatar_" + action + "_" + direction + "_" + i + ".png"), id);
         }
         return frames;
     }
@@ -60,11 +64,17 @@ public class Tileset {
      * The assets are expected under assets/avatars/NPC/{variant}/.
      */
     public static NpcSpriteSet loadNpcSpriteSet(int variant) {
-        TETile[] right = loadNpcDirectionFrames(variant, "right", 16);
-        TETile[] left = loadNpcDirectionFrames(variant, "left", 15);
-        TETile[] up = loadNpcDirectionFrames(variant, "up", 13);
-        TETile[] down = loadNpcDirectionFrames(variant, "down", 14);
-        return new NpcSpriteSet(up, down, left, right);
+        TETile[] walkRight = loadNpcDirectionFrames(variant, "walk", "right", 16);
+        TETile[] walkLeft = loadNpcDirectionFrames(variant, "walk", "left", 15);
+        TETile[] walkUp = loadNpcDirectionFrames(variant, "walk", "up", 13);
+        TETile[] walkDown = loadNpcDirectionFrames(variant, "walk", "down", 14);
+
+        TETile[] attackRight = loadNpcDirectionFrames(variant, "attack", "right", 26);
+        TETile[] attackLeft = loadNpcDirectionFrames(variant, "attack", "left", 25);
+        TETile[] attackUp = loadNpcDirectionFrames(variant, "attack", "up", 23);
+        TETile[] attackDown = loadNpcDirectionFrames(variant, "attack", "down", 24);
+        return new NpcSpriteSet(walkUp, walkDown, walkLeft, walkRight,
+                attackUp, attackDown, attackLeft, attackRight);
     }
 
 

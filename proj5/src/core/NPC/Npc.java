@@ -22,6 +22,8 @@ public class Npc extends Entity{
     private int animTick = 0;
     private int moveTick = 0;
 
+    private boolean attacking = false;
+
 
     private final Tileset.NpcSpriteSet spriteSet;
 
@@ -79,13 +81,11 @@ public class Npc extends Entity{
         moveTick += 1;
         animTick += 1;
 
-        if (animTick >= ANIM_INTERVAL) {
-            animFrame = (animFrame + 1) % spriteSet.upFrames().length;
-            animTick = 0;
-        }
 
+
+        attacking = false;
         if (moveTick < STEP_INTERVAL) {
-            return;
+            updateAnimationFrame();;
         }
         moveTick = 0;
 
@@ -97,6 +97,7 @@ public class Npc extends Entity{
         activeBehavior.onTick(this, view);
         Direction move = activeBehavior.desiredMove();
         if (move == null) {
+            updateAnimationFrame();
             return;
         }
         int nx = x + move.dx;
@@ -105,8 +106,10 @@ public class Npc extends Entity{
             facing = move;
             x = nx;
             y = ny;
+            updateAnimationFrame();
             return;
         }
+        updateAnimationFrame();
     }
 
     private State selectState(WorldView view) {
@@ -126,7 +129,10 @@ public class Npc extends Entity{
     private void switchState(State next) {
         state = next;
         activeBehavior = behaviors.get(next);
+        animTick = 0;
+        animFrame = 0;
         activeBehavior.onEnterState(this);
+
     }
 
 
@@ -134,14 +140,40 @@ public class Npc extends Entity{
      * Current animation frame tile based on facing direction.
      */
     public TETile currentTile() {
-        return switch (facing) {
-            case UP -> spriteSet.upFrames()[animFrame];
-            case DOWN -> spriteSet.downFrames()[animFrame];
-            case LEFT -> spriteSet.leftFrames()[animFrame];
-            case RIGHT -> spriteSet.rightFrames()[animFrame];
-        };
+        TETile[] frames = attacking ? attackFramesForFacing() : walkFramesForFacing();
+        return frames[animFrame];
     }
 
+    public void markAttacking() {
+        attacking = true;
+    }
+
+    private void updateAnimationFrame() {
+        if (animTick < ANIM_INTERVAL) {
+            return;
+        }
+        animTick = 0;
+        int frameCount = attacking ? spriteSet.attackUpFrames().length : spriteSet.walkUpFrames().length;
+        animFrame = (animFrame + 1) % frameCount;
+    }
+
+    private TETile[] walkFramesForFacing() {
+        return switch (facing) {
+            case UP -> spriteSet.walkUpFrames();
+            case DOWN -> spriteSet.walkDownFrames();
+            case LEFT -> spriteSet.walkLeftFrames();
+            case RIGHT -> spriteSet.walkRightFrames();
+        };
+    }
+    private TETile[] attackFramesForFacing() {
+        return switch (facing) {
+
+            case UP -> spriteSet.attackUpFrames();
+            case DOWN -> spriteSet.attackDownFrames();
+            case LEFT -> spriteSet.attackLeftFrames();
+            case RIGHT -> spriteSet.attackRightFrames();
+    };
+}
     private enum State {
         IDLE,
         SEEK,

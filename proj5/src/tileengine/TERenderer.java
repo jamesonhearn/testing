@@ -249,10 +249,12 @@ public class TERenderer {
         drawTiles(world);
         StdDraw.show();
     }
+
     // trying to use bresenhams line algo for LOS
     private boolean isOccluded(int x2, int y2, TETile[][] world){
         int x1 = avatarX;
         int y1 = avatarY;
+
 
         // get directional distances
         int dx = Math.abs(x2 - x1);
@@ -353,6 +355,7 @@ public class TERenderer {
             if (!inView(npc.x(), npc.y())) {
                 continue;
             }
+
             if (npc.y() > avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
                 npc.currentTile().drawScaled(toScreenX(npc.drawX()), toScreenY(npc.drawY()), 4.0);
