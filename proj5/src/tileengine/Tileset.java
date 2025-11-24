@@ -56,6 +56,7 @@ public class Tileset {
                     new Color(46, 38, 33), "npc",
                     npcAssetPath(variant, "avatar_" + action + "_" + direction + "_" + i + ".png"), id);
         }
+
         return frames;
     }
 

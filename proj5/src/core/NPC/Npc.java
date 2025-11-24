@@ -25,7 +25,7 @@ public class Npc extends Entity{
     private boolean attacking = false;
 
 
-    private final Tileset.NpcSpriteSet spriteSet;
+    public final Tileset.NpcSpriteSet spriteSet;
 
     private final EnumMap<State, AiBehavior> behaviors = new EnumMap<>(State.class);
     private State state = State.IDLE;
@@ -85,7 +85,7 @@ public class Npc extends Entity{
 
         attacking = false;
         if (moveTick < STEP_INTERVAL) {
-            updateAnimationFrame();;
+            updateAnimationFrame();
         }
         moveTick = 0;
 
