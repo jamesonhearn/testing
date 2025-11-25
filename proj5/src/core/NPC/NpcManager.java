@@ -5,6 +5,7 @@ import core.Entity;
 
 import core.Avatar;
 import core.CombatService;
+import edu.princeton.cs.algs4.StdDraw;
 import tileengine.TETile;
 import tileengine.Tileset;
 import core.HealthComponent;
@@ -74,6 +75,8 @@ public class NpcManager {
             combatService.register(npc);
             npcs.add(npc);
             npcPositions.add(new Entity.Position(x, y));
+            StdDraw.pause(20);
+
         }
     }
 

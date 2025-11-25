@@ -14,7 +14,6 @@ import core.items.DroppedItem;
 import javax.swing.*;
 import java.util.List;
 
-
 /**
  * Utility class for rendering tiles. You do not need to modify this file. You're welcome
  * to, but be careful. We strongly recommend getting everything else working before
@@ -52,7 +51,7 @@ public class TERenderer {
     private int avatarY = -1;
 
 
-    private double lightRadius = 8;   // tunable
+    private double lightRadius = 40;   // tunable
     public static final TETile DARK =
             new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
 
@@ -195,9 +194,8 @@ public class TERenderer {
         StdDraw.setCanvasSize(width * TILE_SIZE, height * TILE_SIZE);
         centerStdDraw();
         resetFont();
-        StdDraw.setXscale(0, width);
-        StdDraw.setYscale(0, height);
-
+        StdDraw.setXscale(xOffset, xOffset + width);
+        StdDraw.setYscale(yOffset, yOffset + height);
         StdDraw.clear(new Color(0, 0, 0));
 
         StdDraw.enableDoubleBuffering();

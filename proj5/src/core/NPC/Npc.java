@@ -21,6 +21,7 @@ public class Npc extends Entity{
     private int animFrame = 0;
     private int animTick = 0;
     private int moveTick = 0;
+    private final int animPhaseOffset;
 
     private boolean attacking = false;
 
@@ -57,6 +58,8 @@ public class Npc extends Entity{
         switchState(State.IDLE);
         this.drawX = x;
         this.drawY = y;
+        this.animPhaseOffset = rng.nextInt(ANIM_INTERVAL);
+        this.animFrame = rng.nextInt(spriteSet.walkUpFrames().length);
     }
 
     public int x() {
@@ -84,10 +87,7 @@ public class Npc extends Entity{
 
 
         attacking = false;
-        if (moveTick < STEP_INTERVAL) {
-            updateAnimationFrame();
-        }
-        moveTick = 0;
+
 
         State desiredState = selectState(view);
         if (desiredState != state) {
@@ -95,7 +95,12 @@ public class Npc extends Entity{
         }
 
         activeBehavior.onTick(this, view);
-        Direction move = activeBehavior.desiredMove();
+        Direction move = null;
+        if (moveTick >= STEP_INTERVAL) {
+            moveTick = 0;
+            move = activeBehavior.desiredMove();
+        }
+
         if (move == null) {
             updateAnimationFrame();
             return;
@@ -112,6 +117,10 @@ public class Npc extends Entity{
         updateAnimationFrame();
     }
 
+
+    // Less than 2 - attack
+    // Less than 15 more than 2 - Seek
+    // More than 15 - Idle
     private State selectState(WorldView view) {
         int dx = Math.abs(view.avatarPosition().x() - x);
         int dy = Math.abs(view.avatarPosition().y() - y);
@@ -129,8 +138,8 @@ public class Npc extends Entity{
     private void switchState(State next) {
         state = next;
         activeBehavior = behaviors.get(next);
-        animTick = 0;
-        animFrame = 0;
+        animTick = rng.nextInt(ANIM_INTERVAL);
+        animFrame = rng.nextInt(frameCountForState(next));
         activeBehavior.onEnterState(this);
 
     }
@@ -149,12 +158,16 @@ public class Npc extends Entity{
     }
 
     private void updateAnimationFrame() {
-        if (animTick < ANIM_INTERVAL) {
+        if ((animTick + animPhaseOffset) % ANIM_INTERVAL != 0) {
             return;
         }
         animTick = 0;
         int frameCount = attacking ? spriteSet.attackUpFrames().length : spriteSet.walkUpFrames().length;
         animFrame = (animFrame + 1) % frameCount;
+    }
+
+    private int frameCountForState(State next) {
+        return next == State.ATTACK ? spriteSet.attackUpFrames().length : spriteSet.walkUpFrames().length;
     }
 
     private TETile[] walkFramesForFacing() {

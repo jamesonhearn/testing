@@ -6,10 +6,10 @@ import tileengine.Tileset;
 import java.util.*;
 
 public class World {
-    public static final int WIDTH = 200;
-    public static final int HEIGHT = 200;
-    private static final int MIN_ROOM_SIZE = 8;
-    private static final int MAX_ROOM_SIZE = 25;
+    public static final int WIDTH = 50;
+    public static final int HEIGHT = 50;
+    private static final int MIN_ROOM_SIZE = 4;
+    private static final int MAX_ROOM_SIZE = 12;
     private static final int MAX_ROOM_ATTEMPTS = 1000;
     private static final double TARGET_FILL_RATIO = 0.85;
 

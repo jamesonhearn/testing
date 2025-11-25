@@ -7,6 +7,7 @@ import utils.FileUtils;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,8 +33,8 @@ public class Engine {
     public static final int WORLD_WIDTH = World.WIDTH;
     public static final int WORLD_HEIGHT = World.HEIGHT;
 
-    private final int VIEW_WIDTH = screenWidth / 24;
-    private final int VIEW_HEIGHT = screenHeight / 24;
+    private final int VIEW_WIDTH = 45; //screenWidth / 24;
+    private final int VIEW_HEIGHT = 45; //screenHeight / 24;
     public static final int HUD_HEIGHT = 3;
     public static final String SAVE_FILE = "save.txt";
 
@@ -63,6 +64,10 @@ public class Engine {
     private boolean shiftDown = false;
 
 
+    private static final String HEALTHBAR_IMAGE_PATH = "assets/ui/healthbar_early_concept.png";
+    private static final double HEALTHBAR_WIDTH_TILES = 8.0;
+    private static final double HEALTHBAR_HEIGHT_TILES = 2.0;
+    private static final double HUD_MARGIN_TILES = 0.5;
 
     //Animation variables
     private int ticksSinceLastMove = 0;
@@ -244,9 +249,10 @@ public class Engine {
         drawAvatar();
         ter.drawNpcsFront(world, npcManager);
         ter.drawFrontTiles(world);
-        ter.applyFullLightingPass(world);
+        //ter.applyFullLightingPass(world);
         drawHud();
         drawInventoryOverlay();
+        StdDraw.picture(screenWidth / 2, screenHeight / 2, "assets/ui/healthbar_early_concept.png", 20,10);
         StdDraw.show();
     }
 
@@ -254,8 +260,18 @@ public class Engine {
     private void drawHud() {
         StdDraw.setPenColor(Color.WHITE);
         double hudY = VIEW_HEIGHT + 1.5;
+
+
+        double barWidth = 30;   // or whatever large size you want
+        double barHeight = 30 / 3.0;  // keep aspect ratio if needed
+
+        double leftMargin = HUD_MARGIN_TILES;
+        double hbX = leftMargin + barWidth / 2.0;
+        double hbY = VIEW_HEIGHT + HUD_HEIGHT - (barHeight / 2.0) - HUD_MARGIN_TILES * 2;
+
+        StdDraw.picture(hbX, hbY, HEALTHBAR_IMAGE_PATH, barWidth, barHeight);
         StdDraw.textLeft(1, hudY, tileUnderMouse());
-        StdDraw.textLeft(15, hudY, "Inventory: " + inventorySummary());
+        //StdDraw.textLeft(15, hudY, "Inventory: " + inventorySummary());
         if (!hudMessage.isEmpty()) {
             StdDraw.textRight(VIEW_WIDTH - 1, hudY, hudMessage);
         }
@@ -696,8 +712,9 @@ public class Engine {
                 refreshAvatarSprite();
             }
         } else {
-            lastAnimUpdateMs = now;
+            animFrame = 0;
         }
+        refreshAvatarSprite();
     }
 
     private void refreshAvatarSprite() {
@@ -745,7 +762,7 @@ public class Engine {
             drawY = avatar.y;
 //            drawX += (avatar.x - drawX) * SMOOTH_SPEED;
 //            drawY += (avatar.y - drawY) * SMOOTH_SPEED;
-            double avatarScale = 2;   // adjust this number as desired (0.3–0.6 looks good)
+            double avatarScale = 4;   // adjust this number as desired (0.3–0.6 looks good)
             double screenX = ter.toScreenX(drawX);
             double screenY = ter.toScreenY(drawY);
             avatarSprite.drawScaled(screenX, screenY, avatarScale);        }
