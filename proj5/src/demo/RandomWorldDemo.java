@@ -40,7 +40,7 @@ public class RandomWorldDemo {
         int tileNum = RANDOM.nextInt(3);
         return switch (tileNum) {
             case 0 -> Tileset.WALL;
-            case 1 -> Tileset.FLOWER;
+            case 1 -> Tileset.NOTHING;
             default -> Tileset.NOTHING;
         };
     }

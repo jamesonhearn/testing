@@ -75,7 +75,6 @@ public class NpcManager {
             combatService.register(npc);
             npcs.add(npc);
             npcPositions.add(new Entity.Position(x, y));
-            StdDraw.pause(20);
 
         }
     }

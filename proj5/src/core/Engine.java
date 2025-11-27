@@ -33,8 +33,8 @@ public class Engine {
     public static final int WORLD_WIDTH = World.WIDTH;
     public static final int WORLD_HEIGHT = World.HEIGHT;
 
-    private final int VIEW_WIDTH = 45; //screenWidth / 24;
-    private final int VIEW_HEIGHT = 45; //screenHeight / 24;
+    private final int VIEW_WIDTH = 50; //screenWidth / 24;
+    private final int VIEW_HEIGHT = 30;//screenHeight / 24;
     public static final int HUD_HEIGHT = 3;
     public static final String SAVE_FILE = "save.txt";
 
@@ -249,7 +249,7 @@ public class Engine {
         drawAvatar();
         ter.drawNpcsFront(world, npcManager);
         ter.drawFrontTiles(world);
-        //ter.applyFullLightingPass(world);
+        ter.applyFullLightingPass(world);
         drawHud();
         drawInventoryOverlay();
         StdDraw.picture(screenWidth / 2, screenHeight / 2, "assets/ui/healthbar_early_concept.png", 20,10);
@@ -762,7 +762,7 @@ public class Engine {
             drawY = avatar.y;
 //            drawX += (avatar.x - drawX) * SMOOTH_SPEED;
 //            drawY += (avatar.y - drawY) * SMOOTH_SPEED;
-            double avatarScale = 4;   // adjust this number as desired (0.3–0.6 looks good)
+            double avatarScale = 3;   // adjust this number as desired (0.3–0.6 looks good)
             double screenX = ter.toScreenX(drawX);
             double screenY = ter.toScreenY(drawY);
             avatarSprite.drawScaled(screenX, screenY, avatarScale);        }

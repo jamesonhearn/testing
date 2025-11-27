@@ -120,8 +120,8 @@ public class Tileset {
             new Color(74, 63, 52), "cave floor", "assets/tiles/cave_floor_6.png", 2);
     public static final TETile ELEVATOR = new TETile(' ', new Color(214, 193, 170),
             new Color(74, 63, 52), "cave floor", "assets/tiles/elevator.png", 2);
-    public static final TETile NOTHING = new TETile(' ', new Color(214, 193, 170),
-            new Color(74, 63, 52), "nothing", "assets/tiles/void.png", 3);
+    public static final TETile NOTHING = new TETile(' ', new Color(0, 0, 0),
+            new Color(0, 0, 0), "nothing", 3);
 
 //    public static final TETile AVATAR_UP = new TETile(' ', new Color(240, 234, 214),
 //            new Color(46, 38, 33), "you", assetPath("avatar_up.png"), 0);

@@ -7,7 +7,6 @@ import edu.princeton.cs.algs4.StdDraw;
 import java.awt.*;
 import java.lang.reflect.Field;
 
-import tileengine.TETile;
 import core.NPC.NpcManager;
 import core.items.DroppedItem;
 
@@ -21,36 +20,51 @@ import java.util.List;
  * allowing scrolling of the screen or tracking the avatar or something similar.
  */
 public class TERenderer {
-    static final int TILE_SIZE = 24;
+    static final int TILE_SIZE = 36;
+
+    //Canvas sizes
     private int width;
     private int height;
+
+    //Screen offset values
     private int xOffset;
     private int yOffset;
 
 
 
-    //Trying camera centering
+    //How much of map is visible within user window
     private int viewWidth;
     private int viewHeight;
+
+    //Space for HUD on top of screen
     private int hudHeight;
+
+    //Actual full size of world
     private int worldWidth;
     private int worldHeight;
+
+    //Bottom left tile of the visible region within screen
     private int viewOriginX;
     private int viewOriginY;
 
-    private double cameraX = -1;
-    private double cameraY = -1;
+    //Smoothing factor for camera transitions (how much change per frame)
     private static final double CAMERA_SMOOTH = 0.20;
 
     private static final double SMOOTH_SPEED = 0.10;
 
 
 
+    // Camera fields - used to smoothly transition camera location when avatar
+    // nears edges of map
+    private double camTileX;
+    private double camTileY;
 
+    // Avatar tile coordinate
     private int avatarX = -1;
     private int avatarY = -1;
 
 
+    //Radius of visible light circle around player
     private double lightRadius = 40;   // tunable
     public static final TETile DARK =
             new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
@@ -62,29 +76,35 @@ public class TERenderer {
         return dx * dx + dy * dy <= lightRadius * lightRadius;
     }
 
+
+    // Move avatar instantly - replace avatar x and Y with new position
+    // Recenter camera on top of avatar
     public void setAvatarPosition(int x, int y) {
         this.avatarX = x;
         this.avatarY = y;
-        recenterOnAvatar();
+        if (viewWidth > 0 && viewHeight > 0) {
+            camTileX = avatarX - viewWidth / 2.0;
+            camTileY = avatarY - viewHeight / 2.0;
+
+            viewOriginX = clamp((int) Math.round(camTileX), 0, worldWidth - viewWidth);
+            viewOriginY = clamp((int) Math.round(camTileY), 0, worldHeight - viewHeight);
+        }
     }
 
     // If camera is not on avatar, set goal as avatar location and recenter
     public void updateCamera() {
-        if (avatarX < 0 || avatarY < 0) {
-            return;
-        }
+        if (avatarX < 0 || avatarY < 0) return;
+        if (worldWidth == 0 || worldHeight == 0) return;
 
-        if (cameraX < 0 || cameraY < 0) {
-            cameraX = avatarX;
-            cameraY = avatarY;
-        } else {
-            cameraX += (avatarX - cameraX);
-            cameraY += (avatarY - cameraY);
-        }
+        double targetX = avatarX - viewWidth / 2.0;
+        double targetY = avatarY - viewHeight / 2.0;
 
-        recenterOnAvatar();
+        camTileX += (targetX - camTileX) * CAMERA_SMOOTH;
+        camTileY += (targetY - camTileY) * CAMERA_SMOOTH;
+
+        viewOriginX = clamp((int)Math.round(camTileX), 0, worldWidth - viewWidth);
+        viewOriginY = clamp((int)Math.round(camTileY), 0, worldHeight - viewHeight);
     }
-
     public int getViewOriginX() {
         return viewOriginX;
     }
@@ -108,46 +128,27 @@ public class TERenderer {
     }
 
 
-
-    private void recenterOnAvatar() {
-        if (viewWidth == 0 || viewHeight == 0 || worldWidth == 0 || worldHeight == 0) {
-            return;
-        }
-
-        int halfViewWidth = viewWidth / 2;
-        int halfViewHeight = viewHeight / 2;
-
-        viewOriginX = clamp(avatarX - halfViewWidth, 0, Math.max(0, worldWidth - viewWidth));
-        viewOriginY = clamp(avatarY - halfViewHeight, 0, Math.max(0, worldHeight - viewHeight));
-    }
-
     private int clamp(int value, int min, int max) {
         if (value < min) return min;
         if (value > max) return max;
         return value;
     }
 
+    //Is some tiles coords inside of the region between origin and width/height
     private boolean inView(int x, int y) {
         return x >= viewOriginX && x < viewOriginX + viewWidth
                 && y >= viewOriginY && y < viewOriginY + viewHeight;
     }
 
 
+    // Maps world tile coords to on screen tile coords
     public double toScreenX(double worldX) {
-        double halfViewWidth = viewWidth / 2.0;
-        return worldX - cameraX + halfViewWidth + xOffset;
-
-        //double sx = worldX - cameraX + halfViewWidth + xOffset;
-        //return Math.floor(sx*1.0001);
+        return (worldX - viewOriginX) + xOffset;
     }
 
     public double toScreenY(double worldY) {
-        double halfViewHeight = viewHeight / 2.0;
-        return worldY - cameraY + halfViewHeight + yOffset;
-        //double sy = worldY - cameraY + halfViewHeight + yOffset;
-        //return Math.floor(sy*1.0001);
+        return (worldY - viewOriginY) + yOffset;
     }
-
 
 
     // Apparently StdDraw doesnt directly expose this, but you can pull it via
@@ -168,15 +169,15 @@ public class TERenderer {
         }
     }
 
-            /**
-             * Same functionality as the other initialization method. The only difference is that the xOff
-             * and yOff parameters will change where the renderFrame method starts drawing. For example,
-             * if you select w = 60, h = 30, xOff = 3, yOff = 4 and then call renderFrame with a
-             * TETile[50][25] array, the renderer will leave 3 tiles blank on the left, 7 tiles blank
-             * on the right, 4 tiles blank on the bottom, and 1 tile blank on the top.
-             * @param w width of the window in tiles
-             * @param h height of the window in tiles.
-             */
+    /**
+     * Same functionality as the other initialization method. The only difference is that the xOff
+     * and yOff parameters will change where the renderFrame method starts drawing. For example,
+     * if you select w = 60, h = 30, xOff = 3, yOff = 4 and then call renderFrame with a
+     * TETile[50][25] array, the renderer will leave 3 tiles blank on the left, 7 tiles blank
+     * on the right, 4 tiles blank on the bottom, and 1 tile blank on the top.
+     * @param w width of the window in tiles
+     * @param h height of the window in tiles.
+     */
     public void initialize(int w, int h, int xOff, int yOff) {
         this.width = w;
         this.height = h;
@@ -248,7 +249,7 @@ public class TERenderer {
         StdDraw.show();
     }
 
-    // trying to use bresenhams line algo for LOS
+    // Bresenhams line algo for LOS lighting
     private boolean isOccluded(int x2, int y2, TETile[][] world){
         int x1 = avatarX;
         int y1 = avatarY;
@@ -418,7 +419,7 @@ public class TERenderer {
                     throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
                 }
 
-                boolean wall = isWall(tile);
+                boolean wall = notStandable(tile);
 
                 // draw non-wall tiles now
                 // draw walls behind the avatar now
@@ -453,7 +454,7 @@ public class TERenderer {
                     throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
                 }
 
-                if (isWall(tile) && y <= avatarY) {
+                if (notStandable(tile) && y <= avatarY) {
                     tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
 //                    if (isLit(x, y)) {
 //                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
@@ -466,31 +467,10 @@ public class TERenderer {
     }
 
     // Blocks movement on non-standable tiles
-    private boolean isWall(TETile tile) {
-
+    private boolean notStandable(TETile tile) {
         if (tile == null) return true;
-        String d = tile.description();
-        if (d.equals("you") || d.equals("slime") || d.equals("spherevis")){
-            return false;
-        }
-
-
         return tile != Tileset.FLOOR
                 && tile != Tileset.ELEVATOR;
-//        tile == Tileset.FRONT_WALL ||
-//                tile == Tileset.BACK_WALL ||
-//                tile == Tileset.LEFT_WALL ||
-//                tile == Tileset.RIGHT_WALL ||
-//                tile == Tileset.WALL_TOP ||
-//                tile == Tileset.ELEVATOR ||
-//                tile == Tileset.WALL_SIDE ||
-//                tile == Tileset.FRONT_WALL_TOP;
-    }
-    private boolean isFrontLayer(TETile tile) {
-        return tile == Tileset.FRONT_WALL
-                || tile == Tileset.FRONT_WALL_TOP
-                || tile == Tileset.LEFT_WALL
-                || tile == Tileset.RIGHT_WALL;
     }
 
 
