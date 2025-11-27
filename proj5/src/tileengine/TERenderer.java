@@ -20,8 +20,10 @@ import java.util.List;
  * allowing scrolling of the screen or tracking the avatar or something similar.
  */
 public class TERenderer {
-    static final int TILE_SIZE = 36;
-
+    static final int TILE_SIZE = 32;
+    // Keep NPC sprites aligned to a single tile so their visual footprint matches the collision
+    // grid even as TILE_SIZE (zoom) changes.
+    private static final double NPC_SCALE_TILES = 1.0;
     //Canvas sizes
     private int width;
     private int height;
@@ -52,7 +54,43 @@ public class TERenderer {
 
     private static final double SMOOTH_SPEED = 0.10;
 
+    // Keep NPC sprites aligned to a single tile so their visual footprint matches the collision
+    // grid even as TILE_SIZE (zoom) changes.
 
+    /**
+     * Immutable snapshot of the visible window for the current frame. Computing the
+     * bounds once lets multiple render passes (tiles, lighting, overlays) reuse the
+     * same extents without repeating clamp math and keeps deferred draw queues that
+     * preserve depth ordering.
+     */
+    public static final class RenderContext {
+        final int startX;
+        final int endX;
+        final int startY;
+        final int endY;
+        final LightBounds litBounds;
+        final java.util.List<TileDraw> frontTiles = new java.util.ArrayList<>();
+
+        RenderContext(int startX, int endX, int startY, int endY, LightBounds litBounds) {
+            this.startX = startX;
+            this.endX = endX;
+            this.startY = startY;
+            this.endY = endY;
+            this.litBounds = litBounds;
+        }
+
+        boolean contains(int x, int y) {
+            return x >= startX && x < endX && y >= startY && y < endY;
+        }
+
+        boolean withinLightWindow(int x, int y) {
+            return x >= litBounds.startX && x < litBounds.endX
+                    && y >= litBounds.startY && y < litBounds.endY;
+        }
+    }
+
+    private record TileDraw(int x, int y, TETile tile) { }
+    private record LightBounds(int startX, int endX, int startY, int endY) { }
 
     // Camera fields - used to smoothly transition camera location when avatar
     // nears edges of map
@@ -65,7 +103,7 @@ public class TERenderer {
 
 
     //Radius of visible light circle around player
-    private double lightRadius = 40;   // tunable
+    private double lightRadius = 6;   // tunable
     public static final TETile DARK =
             new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
 
@@ -74,6 +112,9 @@ public class TERenderer {
         double dx = x - avatarX;
         double dy = y - avatarY;
         return dx * dx + dy * dy <= lightRadius * lightRadius;
+    }
+    public void setLightRadius(double r) {
+        this.lightRadius = r;
     }
 
 
@@ -123,9 +164,21 @@ public class TERenderer {
 
 
 
-    public void setLightRadius(double r) {
-        this.lightRadius = r;
+    /**
+     * Compute the viewable bounds for the current camera position. Subsequent render
+     * steps should pass this context around instead of recalculating ranges.
+     */
+    public RenderContext buildContext(TETile[][] world) {
+        int startX = Math.max(0, viewOriginX);
+        int endX = Math.min(world.length, viewOriginX + viewWidth);
+
+        int startY = Math.max(0, viewOriginY);
+        int endY = Math.min(world[0].length, viewOriginY + viewHeight);
+
+        LightBounds litBounds = litBounds(startX, endX, startY, endY);
+        return new RenderContext(startX, endX, startY, endY, litBounds);
     }
+
 
 
     private int clamp(int value, int min, int max) {
@@ -284,14 +337,9 @@ public class TERenderer {
         }
     }
 
-    public void applyFullLightingPass(TETile[][] world) {
-        int startX = Math.max(0, viewOriginX);
-        int endX = Math.min(world.length, viewOriginX + viewWidth);
-        int startY = Math.max(0, viewOriginY);
-        int endY = Math.min(world[0].length, viewOriginY + viewHeight);
-
-        for (int x = startX; x < endX; x++) {
-            for (int y = startY; y < endY; y++) {
+    public void applyFullLightingPass(TETile[][] world, RenderContext context) {
+        for (int x = context.startX; x < context.endX; x++) {
+            for (int y = context.startY; y < context.endY; y++) {
                 applyLightingMask(world, x, y);
             }
         }
@@ -300,23 +348,12 @@ public class TERenderer {
 
     // Apply lighting mask to restrict player visibility to circular ring around player avatar
     private void applyLightingMask(TETile[][] world, int x, int y) {
-        if (isOccluded(x,y, world)) {
-            StdDraw.setPenColor(0,0,0); // Occlude beyond wall
-            StdDraw.filledSquare(toScreenX(x) + 0.5, toScreenY(y) + 0.5, 0.5);
-            return;
-        }
 
         double dx = x - avatarX;
         double dy = y - avatarY;
         double dist = Math.sqrt(dx*dx + dy*dy); // basic trig to get tile distance
 
         double radius = lightRadius; // define based on distance wanting to see
-
-        // fully lit
-        if (dist <= radius) {
-            return;
-        }
-
         // fully dark
         if (dist >= radius + 1.0) {
             StdDraw.setPenColor(0, 0, 0);
@@ -324,11 +361,22 @@ public class TERenderer {
             return;
         }
 
+        if (isOccluded(x, y, world)) {
+            StdDraw.setPenColor(0, 0, 0); // Occlude beyond wall
+            StdDraw.filledSquare(toScreenX(x) + 0.5, toScreenY(y) + 0.5, 0.5);
+            return;
+        }
+
+        // fully lit
+        if (dist <= radius) {
+            return;
+        }
+
         // partial fade (0 to 1)
         double fade = dist - radius;   // 0.0 → 1.0
         fade = Math.min(1.0, Math.max(0.0, fade));
 
-        int brightness = (int)(50 * (1.0 - fade)); // 0 (black) to 50 (dim)
+        int brightness = (int) (50 * (1.0 - fade)); // 0 (black) to 50 (dim)
 
         StdDraw.setPenColor(brightness, brightness, brightness);
         StdDraw.filledSquare(toScreenX(x) + 0.5, toScreenY(y) + 0.5, 0.5);
@@ -342,56 +390,60 @@ public class TERenderer {
      */
     // Not used
     public void drawTiles(TETile[][] world) {
-        drawBaseTiles(world);
-        drawFrontTiles(world);
+        RenderContext context = buildContext(world);
+        drawBaseTiles(world, context);
+        drawFrontTiles(context);
     }
 
-    public void drawNpcsBack(TETile[][] world, NpcManager npcManager) {
+    public void drawNpcsBack(TETile[][] world, NpcManager npcManager, RenderContext context) {
         if (npcManager == null) {
             return;
         }
         for (Npc npc : npcManager.npcs()) {
-            if (!inView(npc.x(), npc.y())) {
+            if (!context.withinLightWindow(npc.x(), npc.y())) {
                 continue;
             }
 
             if (npc.y() > avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(toScreenX(npc.drawX()), toScreenY(npc.drawY()), 4.0);
+                npc.currentTile().drawScaled(toScreenX(npc.drawX()), toScreenY(npc.drawY()), 2.0);
                 redrawCoverWalls(world, npc.x(), npc.y());
             }
         }
     }
-    public void drawNpcsFront(TETile[][] world, NpcManager npcManager) {
+    public void drawNpcsFront(TETile[][] world, NpcManager npcManager, RenderContext context) {
         if (npcManager == null) {
             return;
         }
         for (Npc npc : npcManager.npcs()) {
+            if (!context.withinLightWindow(npc.x(), npc.y())) {
+                continue;
+            }
             if (npc.y() <= avatarY) {
                 npc.updateSmooth(SMOOTH_SPEED);
-                npc.currentTile().drawScaled(toScreenX(npc.drawX()), toScreenY(npc.drawY()), 4.0);
+                npc.currentTile().drawScaled(toScreenX(npc.drawX()), toScreenY(npc.drawY()), 2.0);
             }
         }
     }
 
-    public void drawDroppedItems(List<DroppedItem> drops) {
+    public void drawDroppedItems(List<DroppedItem> drops, RenderContext context) {
         if (drops == null) {
             return;
         }
         for (DroppedItem drop : drops) {
-            if (!inView(drop.x(), drop.y())) {
+            if (!context.withinLightWindow(drop.x(), drop.y())) {
                 continue;
             }
             Tileset.LOOT_BAG.drawSized(toScreenX(drop.x()), toScreenY(drop.y()), 1.0);
         }
     }
 
-    public void drawCorpses(List<Corpse> corpses) {
+    public void drawCorpses(List<Corpse> corpses, RenderContext context) {
         if (corpses == null) {
             return;
         }
         for (Corpse corpse : corpses) {
-            if (!inView(corpse.x(), corpse.y())) {
+            if (!context.withinLightWindow(corpse.x(), corpse.y())) {
                 continue;
             }
             corpse.tile().drawSized(toScreenX(corpse.x()), toScreenY(corpse.y()), 1.0);
@@ -401,78 +453,49 @@ public class TERenderer {
 
 
     // If behind avatar and standable, render (
-    public void drawBaseTiles(TETile[][] world) {
-        int numXTiles = world.length;
-        int numYTiles = world[0].length;
-
-        int startX = Math.max(0, viewOriginX);
-        int endX = Math.min(world.length, viewOriginX + viewWidth);
-
-        int startY = Math.max(0, viewOriginY);
-        int endY = Math.min(world[0].length, viewOriginY + viewHeight);
-
-        for (int x = startX; x < endX; x++) {
-            for (int y = startY; y < endY; y++) {
+    public void drawBaseTiles(TETile[][] world, RenderContext context) {
+        LightBounds bounds = context.litBounds;
+        for (int x = bounds.startX; x < bounds.endX; x++) {
+            for (int y = bounds.startY; y < bounds.endY; y++) {
                 TETile tile = world[x][y];
 
                 if (tile == null) {
                     throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
                 }
-
-                boolean wall = notStandable(tile);
-
                 // draw non-wall tiles now
                 // draw walls behind the avatar now
-                if (!wall || y > avatarY) {
+                if (isFloor(tile)){
                     tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
-//                    if (isLit(x, y)) {
-//                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
-//                    } else {
-//                        DARK.drawSized(x + xOffset, y + yOffset, 1.0);
-//                    }
+                } else if (isTopWall(tile) && y > avatarY) {
+                    tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
+                }
+                else {
+                    context.frontTiles.add(new TileDraw(x, y, tile));
                 }
             }
         }
     }
 
     // If in front of avatar and not a floor/standable tile, render (makes sure floors dont render above player)
-    public void drawFrontTiles(TETile[][] world) {
-        int numXTiles = world.length;
-        int numYTiles = world[0].length;
-
-        int startX = Math.max(0, viewOriginX);
-        int endX = Math.min(world.length, viewOriginX + viewWidth);
-
-        int startY = Math.max(0, viewOriginY);
-        int endY = Math.min(world[0].length, viewOriginY + viewHeight);
-
-        for (int x = startX; x < endX; x++) {
-            for (int y = startY; y < endY; y++) {
-                TETile tile = world[x][y];
-
-                if (tile == null) {
-                    throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
-                }
-
-                if (notStandable(tile) && y <= avatarY) {
-                    tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
-//                    if (isLit(x, y)) {
-//                        tile.drawSized(x + xOffset, y + yOffset, 1.0);
-//                    } else {
-//                        DARK.drawSized(x + xOffset, y + yOffset, 1.0);
-//                    }
-                }
-            }
+    public void drawFrontTiles(RenderContext context) {
+        for (TileDraw draw : context.frontTiles) {
+            draw.tile().drawSized(toScreenX(draw.x()), toScreenY(draw.y()), 1.0);
         }
     }
 
-    // Blocks movement on non-standable tiles
-    private boolean notStandable(TETile tile) {
-        if (tile == null) return true;
-        return tile != Tileset.FLOOR
-                && tile != Tileset.ELEVATOR;
-    }
 
+    private LightBounds litBounds(int viewStartX, int viewEndX, int viewStartY, int viewEndY) {
+        // pad the light radius by one tile to keep gradient and occlusion ring intact
+        int radius = Math.max(1, (int) Math.ceil(lightRadius + 1.0));
+
+        int startX = Math.max(viewStartX, avatarX - radius);
+        int endX = Math.min(viewEndX, avatarX + radius + 1);
+
+        int startY = Math.max(viewStartY, avatarY - radius);
+        int endY = Math.min(viewEndY, avatarY + radius + 1);
+
+        return new LightBounds(startX, endX, startY, endY);
+    }
 
     // Minimal redraw to occlude tall NPC sprites when they overlap walls above them.
     private void redrawCoverWalls(TETile[][] world, int npcX, int npcY) {
@@ -504,11 +527,25 @@ public class TERenderer {
             }
         }
     }
-
-    private boolean isTopWall(TETile tile) {
-        return tile == Tileset.WALL_TOP || tile == Tileset.FRONT_WALL_TOP;
+    private boolean isFloor(TETile t) {
+        return t == Tileset.FLOOR || t == Tileset.ELEVATOR;
     }
 
+    private boolean isSideWall(TETile t) {
+        return t == Tileset.LEFT_WALL
+                || t == Tileset.RIGHT_WALL
+                || t == Tileset.WALL_SIDE;
+    }
+
+    private boolean isTopWall(TETile t) {
+        return t == Tileset.WALL_TOP
+                || t == Tileset.FRONT_WALL_TOP
+                || t == Tileset.BACK_WALL;
+    }
+
+    private boolean isWall(TETile t) {
+        return isSideWall(t) || isTopWall(t);
+    }
     /**
      * Resets the font to default settings. You should call this method before drawing any tiles
      * if you changed the pen settings.

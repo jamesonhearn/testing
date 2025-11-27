@@ -3,11 +3,13 @@ package core.NPC;
 import core.AiBehavior;
 import core.Direction;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class SeekBehavior implements AiBehavior {
     private Direction desired;
+
+    // Static RNG for tie-breaking so SeekBehavior doesn't need NPC RNG
+    private static final Random RAND = new Random();
 
     @Override
     public void onEnterState(Npc owner) {
@@ -17,25 +19,26 @@ public class SeekBehavior implements AiBehavior {
     @Override
     public void onTick(Npc owner, WorldView view) {
         desired = null;
-        int dx = view.avatarPosition().x() - owner.x();
-        int dy = view.avatarPosition().y() - owner.y();
 
-        Direction primary = Math.abs(dx) >= Math.abs(dy)
-                ? horizontal(dx)
-                : vertical(dy);
-        Direction secondary = primary == horizontal(dx) ? vertical(dy) : horizontal(dx);
+        var avatarPos = view.avatarPosition();
+        int ax = avatarPos.x();
+        int ay = avatarPos.y();
 
-        List<Direction> attempts = new ArrayList<>();
-        if (primary != null) {
-            attempts.add(primary);
-        }
-        if (secondary != null && secondary != primary) {
-            attempts.add(secondary);
-        }
+        // Copy all directions
+        List<Direction> directions = new ArrayList<>(List.of(Direction.values()));
 
-        for (Direction dir : attempts) {
+        // Sort by squared Euclidean distance + tiny random jitter
+        directions.sort(Comparator.comparingInt(dir -> {
             int nx = owner.x() + dir.dx;
             int ny = owner.y() + dir.dy;
+            return heuristic(nx, ny, ax, ay) + RAND.nextInt(3);
+        }));
+
+        // Choose first valid move
+        for (Direction dir : directions) {
+            int nx = owner.x() + dir.dx;
+            int ny = owner.y() + dir.dy;
+
             if (view.isWalkable(nx, ny) && !view.isOccupied(nx, ny)) {
                 desired = dir;
                 return;
@@ -43,22 +46,14 @@ public class SeekBehavior implements AiBehavior {
         }
     }
 
-    private Direction horizontal(int dx) {
-        if (dx == 0) {
-            return null;
-        }
-        return dx > 0 ? Direction.RIGHT : Direction.LEFT;
-    }
-
-    private Direction vertical(int dy) {
-        if (dy == 0) {
-            return null;
-        }
-        return dy > 0 ? Direction.UP : Direction.DOWN;
-    }
-
     @Override
     public Direction desiredMove() {
         return desired;
+    }
+
+    private int heuristic(int x1, int y1, int x2, int y2) {
+        int dx = x1 - x2;
+        int dy = y1 - y2;
+        return dx*dx + dy*dy; // squared distance
     }
 }

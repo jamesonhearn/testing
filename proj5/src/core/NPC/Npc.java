@@ -42,11 +42,15 @@ public class Npc extends Entity{
     public void setDrawX(double x) { this.drawX = x; }
     public void setDrawY(double y) { this.drawY = y; }
 
+    /**
+     * Nudge the render position toward the logical tile while snapping when close
+     * to avoid visible drift (e.g., appearing a tile above the actual blocker).
+     */
     public void updateSmooth(double speed) {
         drawX += (x - drawX) * speed;
         drawY += (y - drawY) * speed;
+        
     }
-
 
     public Npc(int x, int y, Random rng, Tileset.NpcSpriteSet spriteSet, core.HealthComponent health) {
         super(x, y, health);

@@ -27,7 +27,7 @@ public class WorldView {
         if (x < 0 || y < 0 || x >= world.length || y >= world[0].length) {
             return false;
         }
-        return world[x][y].equals(Tileset.FLOOR);
+        return world[x][y].equals(Tileset.FLOOR) || isOccupied(x,y);
     }
 
     public Avatar avatar() {

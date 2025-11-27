@@ -25,6 +25,14 @@ public final class ItemRegistry {
             "Valuable crafting catalyst"
     );
 
+    public static final Item LIGHT_SHARD = new Item(
+            "light_shard",
+            "Light Shard",
+            ItemRarity.UNCOMMON,
+            5,
+            "Temporarily brightens your surroundings when picked up"
+    );
+
     private ItemRegistry() {
     }
 }

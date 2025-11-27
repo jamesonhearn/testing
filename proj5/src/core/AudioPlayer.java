@@ -1,4 +1,5 @@
 package core;
+
 import javax.sound.sampled.*;
 import java.io.File;
 import java.io.IOException;
@@ -6,51 +7,114 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-
 public class AudioPlayer {
+
     private Clip loopClip;
     private final List<Clip> effectsClips = new ArrayList<>();
     private final Random random = new Random();
 
     private long lastFootstepTime = 0;
-    private static final long FOOTSTEP_COOLDOWN_MS = 240;   // ~8 steps/sec
+    private static final long FOOTSTEP_COOLDOWN_MS = 240;
+
+    // ------------------------------------------------------
+    // Utility: Try to obtain a Clip safely
+    // ------------------------------------------------------
+    private Clip tryGetClip() {
+        try {
+            return AudioSystem.getClip();
+        } catch (LineUnavailableException | IllegalArgumentException e) {
+            System.err.println("[Audio] No audio output device available. Sound disabled.");
+            return null;
+        }
+    }
+
+    // ------------------------------------------------------
+    // Load a single WAV safely
+    // ------------------------------------------------------
+    private Clip loadClip(String filepath, float gainDb) {
+        try {
+            AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
+            Clip clip = tryGetClip();
+            if (clip == null) return null;  // no device → silent mode
+
+            try {
+                clip.open(audio);
+            } catch (LineUnavailableException e) {
+                System.err.println("[Audio] Failed to open audio line: " + filepath);
+                return null;
+            }
+
+            setVolume(clip, gainDb);
+            return clip;
+
+        } catch (UnsupportedAudioFileException | IOException e) {
+            System.err.println("[Audio] Unable to load WAV: " + filepath);
+            return null;
+        }
+    }
+
+    // ------------------------------------------------------
+    // Set volume (if supported)
+    // ------------------------------------------------------
+    private void setVolume(Clip clip, float gainDb) {
+        if (clip != null && clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+            FloatControl volume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            volume.setValue(gainDb);
+        }
+    }
+
+    // ------------------------------------------------------
+    // Public API
+    // ------------------------------------------------------
 
     public void play(String filepath) {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
-            loopClip = AudioSystem.getClip();
-            loopClip.open(audio);
+            loopClip = tryGetClip();
+            if (loopClip == null) return;  // no device → silent mode
 
-            FloatControl volume = (FloatControl) loopClip.getControl(FloatControl.Type.MASTER_GAIN);
-            volume.setValue(-15.0f);
+            try {
+                loopClip.open(audio);
+            } catch (LineUnavailableException e) {
+                System.err.println("[Audio] Cannot open clip for: " + filepath);
+                return;
+            }
+
+            setVolume(loopClip, -15f);
             loopClip.start();
+
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Audio] Failed to play: " + filepath);
         }
     }
 
     public void playLoop(String filepath) {
         stopLoop();
+
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
-            loopClip = AudioSystem.getClip();
-            loopClip.open(audio);
+            loopClip = tryGetClip();
+            if (loopClip == null) return;
 
-            setVolume(loopClip, -15.0f);
+            try {
+                loopClip.open(audio);
+            } catch (LineUnavailableException e) {
+                System.err.println("[Audio] Cannot open loop clip: " + filepath);
+                return;
+            }
 
+            setVolume(loopClip, -15f);
             loopClip.loop(Clip.LOOP_CONTINUOUSLY);
             loopClip.start();
 
-
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Audio] Failed to play loop: " + filepath);
         }
     }
 
-    // load however many effects available
     public void loadEffects(String... filepaths) {
         for (String path : filepaths) {
-            Clip clip = loadClip(path, -15.0f);
+            Clip clip = loadClip(path, -15f);
             if (clip != null) {
                 effectsClips.add(clip);
             }
@@ -58,18 +122,15 @@ public class AudioPlayer {
     }
 
     public void playRandomEffect() {
-
         long now = System.currentTimeMillis();
-        if (now - lastFootstepTime < FOOTSTEP_COOLDOWN_MS) {
-            return;
-        }
-
+        if (now - lastFootstepTime < FOOTSTEP_COOLDOWN_MS) return;
         lastFootstepTime = now;
 
-        if (effectsClips.isEmpty()) {
-            return;
-        }
+        if (effectsClips.isEmpty()) return;
+
         Clip clip = effectsClips.get(random.nextInt(effectsClips.size()));
+        if (clip == null) return;
+
         if (clip.isRunning()) {
             clip.stop();
         }
@@ -77,31 +138,8 @@ public class AudioPlayer {
         clip.start();
     }
 
-
-    private Clip loadClip(String filepath, float gainDb) {
-        try {
-            AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
-            Clip clip = AudioSystem.getClip();
-            clip.open(audio);
-            setVolume(clip, gainDb);
-            return clip;
-        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    private void setVolume(Clip clip, float gainDb) {
-        if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-            FloatControl volume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-            volume.setValue(gainDb);
-        }
-    }
-
-
-
     public void stop() {
-        if (loopClip != null && loopClip.isRunning()){
+        if (loopClip != null && loopClip.isRunning()) {
             loopClip.stop();
             loopClip.close();
         }
@@ -120,27 +158,33 @@ public class AudioPlayer {
     public void playThenCallback(String filepath, Runnable onComplete) {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
-            loopClip = AudioSystem.getClip();
-            loopClip.open(audio);
+            loopClip = tryGetClip();
+            if (loopClip == null) return;
 
-            FloatControl volume = (FloatControl) loopClip.getControl(FloatControl.Type.MASTER_GAIN);
-            volume.setValue(-15.0f);
+            try {
+                loopClip.open(audio);
+            } catch (LineUnavailableException e) {
+                System.err.println("[Audio] Cannot open clip for callback: " + filepath);
+                return;
+            }
+
+            setVolume(loopClip, -15f);
 
             loopClip.addLineListener(event -> {
                 if (event.getType() == LineEvent.Type.STOP) {
                     loopClip.close();
-                    if (onComplete != null) {
-                        onComplete.run();
-                    }
+                    if (onComplete != null) onComplete.run();
                 }
             });
 
             loopClip.start();
+
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Audio] Failed to playThenCallback: " + filepath);
         }
     }
 
+    // Optional cleanup if needed (not required)
     private void closeEffects() {
         for (Clip clip : effectsClips) {
             if (clip != null && clip.isOpen()) {

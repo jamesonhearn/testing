@@ -34,7 +34,7 @@ public class Engine {
     public static final int WORLD_HEIGHT = World.HEIGHT;
 
     private final int VIEW_WIDTH = 50; //screenWidth / 24;
-    private final int VIEW_HEIGHT = 30;//screenHeight / 24;
+    private final int VIEW_HEIGHT = 35;//screenHeight / 24;
     public static final int HUD_HEIGHT = 3;
     public static final String SAVE_FILE = "save.txt";
 
@@ -54,6 +54,15 @@ public class Engine {
     private boolean tabDown = false;
 
 
+
+    // Lighting variables
+    private static final double BASE_LIGHT_RADIUS = 20.0;
+    private static final double SURGE_LIGHT_RADIUS = 30.0;
+    private static final long LIGHT_SURGE_DURATION_MS = 10_000L;
+    private static final long LIGHT_FADE_DURATION_MS = 3_000L;
+    private long lightSurgeStartMs = -1L;
+
+
     // AUDIO STUFF
     private final AudioPlayer music = new AudioPlayer();
 
@@ -68,6 +77,15 @@ public class Engine {
     private static final double HEALTHBAR_WIDTH_TILES = 8.0;
     private static final double HEALTHBAR_HEIGHT_TILES = 2.0;
     private static final double HUD_MARGIN_TILES = 0.5;
+
+
+    /** Half-size of the avatar collision box in tile units (smaller than a full tile). */
+    private static final double AVATAR_HITBOX_HALF = 0.24;
+    /** Half-size of the NPC collision box in tile units (smaller than a full tile). */
+    private static final double NPC_HITBOX_HALF = 0.30;
+    /** Offset the avatar toward the entry edge when squeezing past an NPC. */
+    private static final double HUG_EDGE_OFFSET = 0.5 - AVATAR_HITBOX_HALF - 0.02;
+
 
     //Animation variables
     private int ticksSinceLastMove = 0;
@@ -86,6 +104,8 @@ public class Engine {
 
     // Added smoothing to animations
     private double drawX =0, drawY = 0;
+    private double avatarOffsetX = 0.0;
+    private double avatarOffsetY = 0.0;
     private static final double SMOOTH_SPEED = 0.40;
 
     public Engine() {
@@ -146,8 +166,44 @@ public class Engine {
         droppedItems = new ArrayList<>();
         inventoryVisible = false;
         hudMessage = "";
+        resetLighting();
 
     }
+
+    private void resetLighting() {
+        lightSurgeStartMs = -1L;
+        ter.setLightRadius(BASE_LIGHT_RADIUS);
+    }
+
+    private void triggerLightSurge() {
+        lightSurgeStartMs = System.currentTimeMillis();
+        ter.setLightRadius(SURGE_LIGHT_RADIUS);
+    }
+
+    private void updateLightingRadius() {
+        if (lightSurgeStartMs < 0) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long elapsed = now - lightSurgeStartMs;
+
+        if (elapsed <= LIGHT_SURGE_DURATION_MS) {
+            ter.setLightRadius(SURGE_LIGHT_RADIUS);
+            return;
+        }
+
+        if (elapsed <= LIGHT_SURGE_DURATION_MS + LIGHT_FADE_DURATION_MS) {
+            double fadeProgress = (double) (elapsed - LIGHT_SURGE_DURATION_MS) / LIGHT_FADE_DURATION_MS;
+            double radius = SURGE_LIGHT_RADIUS - (SURGE_LIGHT_RADIUS - BASE_LIGHT_RADIUS) * fadeProgress;
+            ter.setLightRadius(radius);
+            return;
+        }
+
+        lightSurgeStartMs = -1L;
+        ter.setLightRadius(BASE_LIGHT_RADIUS);
+    }
+
     private void showMainMenu() {
         StdDraw.clear(Color.BLACK);
         StdDraw.setPenColor(Color.WHITE);
@@ -240,16 +296,20 @@ public class Engine {
     //primary method for overlaying world
     private void renderWithHud() {
         StdDraw.clear(Color.BLACK);
+        if (lightSurgeStartMs >= 0) {
+            updateLightingRadius();
+        }
         ter.setAvatarPosition(avatar.x, avatar.y);
         ter.updateCamera();
-        ter.drawBaseTiles(world);
-        ter.drawCorpses(npcManager == null ? null : npcManager.corpses());
-        ter.drawDroppedItems(droppedItems);
-        ter.drawNpcsBack(world, npcManager);
+        TERenderer.RenderContext context = ter.buildContext(world);
+        ter.drawBaseTiles(world, context);
+        ter.drawCorpses(npcManager == null ? null : npcManager.corpses(), context);
+        ter.drawDroppedItems(droppedItems, context);
+        ter.drawNpcsBack(world, npcManager, context);
         drawAvatar();
-        ter.drawNpcsFront(world, npcManager);
-        ter.drawFrontTiles(world);
-        ter.applyFullLightingPass(world);
+        ter.drawNpcsFront(world, npcManager, context);
+        ter.drawFrontTiles(context);
+        ter.applyFullLightingPass(world, context);
         drawHud();
         drawInventoryOverlay();
         StdDraw.picture(screenWidth / 2, screenHeight / 2, "assets/ui/healthbar_early_concept.png", 20,10);
@@ -541,6 +601,7 @@ public class Engine {
     private void startNewWorld(long seed) {
         World generator = new World(seed);
         world = generator.generate();
+        resetLighting();
         placeAvatar();
         npcManager = new NpcManager(new Random(seed ^ NPC_SEED_SALT), combatService); // golden ratio hash, allows nice NPC RNG relative to world RNG
         npcManager.setDeathHandler(this::handleNpcDeath);
@@ -564,6 +625,8 @@ public class Engine {
                     avatarSprite = Tileset.AVATAR_DOWN_FRAMES[0];
                     // Snap the smoothed draw coordinates to the spawn tile so the avatar
                     // doesn't glide in from (0,0) on the first frame.
+                    avatarOffsetX = 0.0;
+                    avatarOffsetY = 0.0;
                     drawX = avatar.x;
                     drawY = avatar.y;
                     return;
@@ -576,15 +639,35 @@ public class Engine {
 
     // Depending on direction, update avatar position and rotate sprite animation frame
     // validate that canEnter (is FLOOR)
+    // validate that canEnter (is FLOOR)
     private boolean moveAvatar(char direction) {
+        MovementPlan plan = planMove(direction);
+        boolean moved = false;
+        if (plan != null) {
+            avatar.setPosition(plan.target().x(), plan.target().y());
+            avatarOffsetX = plan.offsetX();
+            avatarOffsetY = plan.offsetY();
+            moved = true;
+        }
+        refreshAvatarSprite();
+        return moved;
+    }
+
+    private record MovementPlan(Entity.Position target, double offsetX, double offsetY) {}
+
+
+    private MovementPlan planMove(char direction) {
         Entity.Position target = avatar.position();
         lastFacing = direction;
+        double offsetX = 0.0;
+        double offsetY = 0.0;
+
         switch (direction) {
             case 'w':
                 target = new Entity.Position(avatar.x, avatar.y + 1);
                 break;
             case 'a':
-                target = new Entity.Position(avatar.x -1, avatar.y);
+                target = new Entity.Position(avatar.x - 1, avatar.y);
                 break;
             case 's':
                 target = new Entity.Position(avatar.x, avatar.y - 1);
@@ -593,15 +676,38 @@ public class Engine {
                 target = new Entity.Position(avatar.x + 1, avatar.y);
                 break;
             default:
-                break;
+                return null;
         }
-        boolean moved = false;
-        if (canEnter(target)) {
-            avatar.setPosition(target.x(),target.y());
-            moved = true;
+        if (!isWalkableFloor(target)) {
+            return null;
         }
-        refreshAvatarSprite();
-        return moved;
+
+        Npc blocking = npcManager == null ? null : npcManager.npcAtTile(target.x(), target.y());
+        if (blocking != null) {
+            // Hug the edge of the tile closest to the movement direction to avoid the NPC's body.
+            offsetX = switch (direction) {
+                case 'a' -> HUG_EDGE_OFFSET;
+                case 'd' -> -HUG_EDGE_OFFSET;
+                default -> 0.0;
+            };
+            offsetY = switch (direction) {
+                case 's' -> -HUG_EDGE_OFFSET;
+                case 'w' -> HUG_EDGE_OFFSET;
+                default -> 0.0;
+            };
+
+            if (overlapsNpc(target, offsetX, offsetY, blocking)) {
+                return null;
+            }
+        }
+
+        // When slipping past an NPC, keep the avatar anchored toward the edge; otherwise center the hitbox.
+        if (blocking == null) {
+            offsetX = 0.0;
+            offsetY = 0.0;
+        }
+
+        return new MovementPlan(target, offsetX, offsetY);
     }
 
 
@@ -620,7 +726,7 @@ public class Engine {
         if (world == null || avatar == null) {
             return;
         }
-        Item[] candidates = new Item[]{ItemRegistry.SMALL_POTION, ItemRegistry.TORCH, ItemRegistry.GEMSTONE};
+        Item[] candidates = new Item[]{ItemRegistry.LIGHT_SHARD};
         int placed = 0;
         int attempts = 0;
         while (placed < 6 && attempts < 400) {
@@ -648,6 +754,12 @@ public class Engine {
         boolean pickedSomething = false;
         for (DroppedItem drop : droppedItems) {
             if (drop.x() == avatar.x && drop.y() == avatar.y) {
+                if (drop.item() == ItemRegistry.LIGHT_SHARD) {
+                    triggerLightSurge();
+                    pickedSomething = true;
+                    hudMessage = "A burst of light surrounds you";
+                    continue;
+                }
                 int leftover = inventory.add(drop.item(), drop.quantity());
                 pickedSomething = true;
                 if (leftover > 0) {
@@ -670,16 +782,25 @@ public class Engine {
 
 
     // True iff valid world position and is FLOOR tile
-    private boolean canEnter(Entity.Position pos) {
+    private boolean isWalkableFloor(Entity.Position pos) {
         if (pos.x() < 0 || pos.x() >= WORLD_WIDTH || pos.y() < 0 || pos.y() >= WORLD_HEIGHT) {
-            return false;
-        }
-        if (npcManager != null && npcManager.isNpcAt(pos.x(), pos.y())) {
             return false;
         }
         return world[pos.x()][pos.y()].equals(Tileset.FLOOR);
     }
 
+
+    private boolean overlapsNpc(Entity.Position target, double offsetX, double offsetY, Npc npc) {
+        double avatarCenterX = target.x() + 0.5 + offsetX;
+        double avatarCenterY = target.y() + 0.5 + offsetY;
+        double npcCenterX = npc.x() + 0.5;
+        double npcCenterY = npc.y() + 0.5;
+
+        double dx = avatarCenterX - npcCenterX;
+        double dy = avatarCenterY - npcCenterY;
+        double minDistance = AVATAR_HITBOX_HALF + NPC_HITBOX_HALF;
+        return Math.hypot(dx, dy) < minDistance;
+    }
 
     private void handleAvatarDeath(Entity entity) {
         if (!(entity instanceof Avatar fallen)) {
@@ -691,6 +812,8 @@ public class Engine {
         fallen.loseLife();
         hudMessage = "You died! Lives left: " + fallen.lives();
         fallen.respawn();
+        avatarOffsetX = 0.0;
+        avatarOffsetY = 0.0;
         drawX = fallen.x;
         drawY = fallen.y;
     }
@@ -758,11 +881,11 @@ public class Engine {
     private void drawAvatar() {
         if (avatar != null && avatarSprite != null) {
             // When movement stops, snap to the target tile to avoid post-input sliding.
-            drawX = avatar.x;
-            drawY = avatar.y;
+            drawX = avatar.x + avatarOffsetX;
+            drawY = avatar.y + avatarOffsetY;
 //            drawX += (avatar.x - drawX) * SMOOTH_SPEED;
 //            drawY += (avatar.y - drawY) * SMOOTH_SPEED;
-            double avatarScale = 3;   // adjust this number as desired (0.3–0.6 looks good)
+            double avatarScale = 2;   // adjust this number as desired (0.3–0.6 looks good)
             double screenX = ter.toScreenX(drawX);
             double screenY = ter.toScreenY(drawY);
             avatarSprite.drawScaled(screenX, screenY, avatarScale);        }
