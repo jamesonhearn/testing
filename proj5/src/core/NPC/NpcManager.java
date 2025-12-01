@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import core.animation.AnimationCycle;
+
 /**
  * Central coordinator for NPC creation, updates, and rendering helpers.
  */
@@ -29,6 +31,8 @@ public class NpcManager {
     private final Random rng;
     private final List<Npc> npcs = new ArrayList<>();
     private final List<Corpse> corpses = new ArrayList<>();
+    /** Corpses that still have a death animation to play. */
+    private final List<Corpse> animatingCorpses = new ArrayList<>();
     /** Quick membership check for existing NPC tiles. */
     private final Set<Entity.Position> npcPositions = new HashSet<>();
     private final CombatService combatService;
@@ -55,6 +59,7 @@ public class NpcManager {
         npcs.clear();
         npcByTile.clear();
         corpses.clear();
+        animatingCorpses.clear();
         int attempts = 0;
         while (npcs.size() < DEFAULT_NPC_COUNT && attempts < 500) {
             attempts += 1;
@@ -100,12 +105,21 @@ public class NpcManager {
             Entity.Position updated = new Entity.Position(npc.x(), npc.y());
             addNpcPosition(updated, npc);
         }
+        tickCorpses();
     }
 
     public List<Corpse> corpses() {
         return corpses;
     }
 
+    public void damageAtTile(int x, int y, Entity source, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        for (Npc npc : npcsAtTile(x, y)) {
+            combatService.queueDamage(npc, source, amount);
+        }
+    }
 
     private Set<Entity.Position> buildOccupiedSet(Entity.Position avatarPos) {
         Set<Entity.Position> occupied = new HashSet<>();
@@ -215,11 +229,21 @@ public class NpcManager {
     private void handleNpcDeath(Npc npc) {
         removeNpcPosition(new Entity.Position(npc.x(), npc.y()), npc);
         npcs.remove(npc);
-        corpses.add(new Corpse(npc.x(), npc.y(), Tileset.NPC_CORPSE));
+        AnimationCycle death = new AnimationCycle(new TETile[]{npc.currentTile(), Tileset.NPC_CORPSE}, 2, false);
+        Corpse corpse = new Corpse(npc.x(), npc.y(), death);
+        corpses.add(corpse);
+        if (corpse.isAnimating()) {
+            animatingCorpses.add(corpse);
+        }
         combatService.unregister(npc);
         deathHandler.accept(npc);
     }
 
+
+
+    private void tickCorpses() {
+        animatingCorpses.removeIf(corpse -> !corpse.tick());
+    }
 
     private void addNpcPosition(Entity.Position position, Npc npc) {
         npcByTile.computeIfAbsent(position, p -> new ArrayList<>()).add(npc);

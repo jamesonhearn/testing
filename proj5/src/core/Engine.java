@@ -9,14 +9,17 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import core.Direction;
 import core.NPC.Npc;
 import core.NPC.NpcManager;
+import core.animation.AnimationCycle;
 import core.items.DroppedItem;
 import core.items.Inventory;
 import core.items.Item;
@@ -56,8 +59,17 @@ public class Engine {
 
 
     // Lighting variables
-    private static final double BASE_LIGHT_RADIUS = 20.0;
-    private static final double SURGE_LIGHT_RADIUS = 30.0;
+
+    // Light decay system
+    private static final double MAX_LIGHT_RADIUS = 9.0;      // starting radius
+    private static final double MIN_LIGHT_RADIUS = 0.0;      // when reached, avatar dies
+    private static final long LIGHT_DECAY_INTERVAL_MS = 10_000; // shrink every 30 seconds
+
+    private long lastDecayTime = -1L;
+    private double decayingLightRadius = MAX_LIGHT_RADIUS;
+
+    private static final double BASE_LIGHT_RADIUS = MAX_LIGHT_RADIUS;
+    private static final double SURGE_LIGHT_RADIUS = 12.0;
     private static final long LIGHT_SURGE_DURATION_MS = 10_000L;
     private static final long LIGHT_FADE_DURATION_MS = 3_000L;
     private long lightSurgeStartMs = -1L;
@@ -66,6 +78,7 @@ public class Engine {
     // AUDIO STUFF
     private final AudioPlayer music = new AudioPlayer();
 
+    private long hudMessageExpireMs = 0;
 
     // Movement variables
     private boolean wDown, aDown, sDown, dDown;
@@ -78,6 +91,8 @@ public class Engine {
     private static final double HEALTHBAR_HEIGHT_TILES = 2.0;
     private static final double HUD_MARGIN_TILES = 0.5;
 
+    private static final int TICK_MS = 30; // create ticks to create consistent movements
+
 
     /** Half-size of the avatar collision box in tile units (smaller than a full tile). */
     private static final double AVATAR_HITBOX_HALF = 0.24;
@@ -89,15 +104,22 @@ public class Engine {
 
     //Animation variables
     private int ticksSinceLastMove = 0;
-    private int animFrame = 0; // Assign anim frame to cycle through character pngs
-    private int MAX_FRAMES = 8;
     private static final int WALK_REPEAT_TICKS = 2;
     private static final int RUN_REPEAT_TICKS = 1;   // ~2× faster
+    private static final int AVATAR_WALK_TICKS = Math.max(1, (int) Math.round(40.0 / TICK_MS));
+    private static final int AVATAR_RUN_TICKS = Math.max(1, AVATAR_WALK_TICKS - 1);
+    private static final int AVATAR_ATTACK_TICKS = Math.max(1, (int) Math.round(60.0 / TICK_MS));
+    private static final int AVATAR_ATTACK_DAMAGE = 1;
 
-    private static final int AVATAR_ANIM_MS = 40;    // frame change cadence while moving
-    private long lastAnimUpdateMs = 0L;
+    private final EnumMap<AvatarAction, EnumMap<Direction, AnimationCycle>> avatarAnimations =
+            new EnumMap<>(AvatarAction.class);
+    private AnimationCycle avatarAnimation;
+    private AvatarAction avatarAction = AvatarAction.IDLE;
     private char lastFacing = 's';
-
+    private boolean attackDown = false;
+    private boolean attackInProgress = false;
+    private boolean attackQueued = false;
+    private Direction attackFacing = Direction.DOWN;
 
     private static final long NPC_SEED_SALT = 0x9e3779b97f4a7c15L;
 
@@ -160,7 +182,9 @@ public class Engine {
         history = new StringBuilder();
         npcManager = null;
         combatService = new CombatService();
-
+        avatarAnimations.clear();
+        avatarAnimation = null;
+        avatarAction = AvatarAction.IDLE;
         //Reset inventory
         inventory = new Inventory(16);
         droppedItems = new ArrayList<>();
@@ -201,7 +225,13 @@ public class Engine {
         }
 
         lightSurgeStartMs = -1L;
+
+        // Snap rendering radius back to base
         ter.setLightRadius(BASE_LIGHT_RADIUS);
+
+        // ✔ IMPORTANT: Correct the decaying state
+        decayingLightRadius = BASE_LIGHT_RADIUS;
+        lastDecayTime = System.currentTimeMillis();
     }
 
     private void showMainMenu() {
@@ -257,9 +287,9 @@ public class Engine {
 
 
     private void gameLoop() {
-        final int TICK_MS = 15; // create ticks to create consistent movements - hard coded ms delays caused bad inputs. 15ms per frame, but move N ticks
         music.playLoop("assets/audio/spookycave.wav"); // uncomment when you want to check music
         while (true) {
+            updateHudMessage();
             renderWithHud();
 
 
@@ -272,13 +302,14 @@ public class Engine {
             }
             updateInventoryToggle();
 
-            handleMovementRealtime(true);
+            boolean avatarMoved = handleMovementRealtime(true);
             if (npcManager != null && avatar != null) {
                 npcManager.tick(world, avatar);
             }
             combatService.tick();
+            updateLightDecay();
             StdDraw.pause(TICK_MS);
-            tickAvatarAnimation();
+            tickAvatarAnimation(avatarMoved);
 
 
 //            if (!StdDraw.hasNextKeyTyped()) {
@@ -486,7 +517,7 @@ public class Engine {
 
 
     // This one is a bit of a mess
-    private void handleMovementRealtime(boolean record) {
+    private boolean handleMovementRealtime(boolean record) {
         // check if shift down and assign T/F for each directional val
         shiftDown = StdDraw.isKeyPressed(KeyEvent.VK_SHIFT);
         boolean tab = StdDraw.isKeyPressed(KeyEvent.VK_TAB);
@@ -494,9 +525,16 @@ public class Engine {
         boolean a = StdDraw.isKeyPressed(KeyEvent.VK_A);
         boolean s = StdDraw.isKeyPressed(KeyEvent.VK_S);
         boolean d = StdDraw.isKeyPressed(KeyEvent.VK_D);
+        boolean attack = StdDraw.isKeyPressed(KeyEvent.VK_SPACE);
 
         // Check if any key pressed, used to reset direction
         boolean anyDown = w || a || s || d;
+
+        boolean attackJust = attack && !attackDown;
+        if (attackJust) {
+            Direction facing = directionFromChar((currentDirection != 0) ? currentDirection : lastFacing);
+            startAttack(facing);
+        }
 
 
         // check if press or press and hold (Down vars jut recheck keyEvent)
@@ -518,6 +556,7 @@ public class Engine {
         if (!d && currentDirection == 'd') currentDirection = fallbackDirection(w,a,s,d);
 
         // Clear direction if no keys are pressed
+        boolean movedThisTick = false;
         if (!anyDown) {
             currentDirection = 0;
             ticksSinceLastMove = 0;
@@ -531,6 +570,7 @@ public class Engine {
                 if (moved) {
                     music.playRandomEffect();
                     pickupAtAvatar();
+                    movedThisTick = true;
                 }
                 ticksSinceLastMove = 0;
             } else {
@@ -544,6 +584,7 @@ public class Engine {
                     if (moved) {
                         music.playRandomEffect();
                         pickupAtAvatar();
+                        movedThisTick = true;
                     }
                     ticksSinceLastMove = 0;
                 }
@@ -555,6 +596,8 @@ public class Engine {
         aDown = a;
         sDown = s;
         dDown = d;
+        attackDown = attack;
+        return movedThisTick;
     }
 
     // Allow for return to prior direction on multi key movements
@@ -602,6 +645,9 @@ public class Engine {
         World generator = new World(seed);
         world = generator.generate();
         resetLighting();
+        decayingLightRadius = MAX_LIGHT_RADIUS;
+        lastDecayTime = System.currentTimeMillis();
+        ter.setLightRadius(decayingLightRadius);
         placeAvatar();
         npcManager = new NpcManager(new Random(seed ^ NPC_SEED_SALT), combatService); // golden ratio hash, allows nice NPC RNG relative to world RNG
         npcManager.setDeathHandler(this::handleNpcDeath);
@@ -622,7 +668,7 @@ public class Engine {
                     avatar = new Avatar(x, y, 3, avatarHealth);
                     avatar.setSpawnPoint(new Entity.Position(x, y));
                     combatService.register(avatar);
-                    avatarSprite = Tileset.AVATAR_DOWN_FRAMES[0];
+                    initializeAvatarAnimations(Direction.DOWN);
                     // Snap the smoothed draw coordinates to the spawn tile so the avatar
                     // doesn't glide in from (0,0) on the first frame.
                     avatarOffsetX = 0.0;
@@ -649,9 +695,75 @@ public class Engine {
             avatarOffsetY = plan.offsetY();
             moved = true;
         }
-        refreshAvatarSprite();
         return moved;
     }
+    private void startAttack(Direction facing) {
+        if (avatar == null || attackInProgress) {
+            return;
+        }
+        attackInProgress = true;
+        attackQueued = true;
+        attackFacing = facing;
+        AnimationCycle attackCycle = avatarAnimations.get(AvatarAction.ATTACK).get(facing);
+        attackCycle.restart();
+        avatarAnimation = attackCycle;
+        avatarAction = AvatarAction.ATTACK;
+        avatarSprite = attackCycle.currentFrame();
+
+        applyAttackDamage(facing);
+    }
+
+    private void applyAttackDamage (Direction facing){
+        if (npcManager == null) return;
+
+        int ax = avatar.x;
+        int ay = avatar.y;
+
+        // Offsets for the attack zone (relative to avatar)
+        int[][] offsets;
+
+        switch (facing) {
+            case UP -> offsets = new int[][]{
+                    {-1, 1}, {0, 1}, {1, 1},     // first row ahead
+                    {-1, 2}, {0, 2}, {1, 2},     // second row ahead
+                    {-1, 0}, {1, 0}              // side-adjacent tiles
+            };
+
+            case DOWN -> offsets = new int[][]{
+                    {-1, -1}, {0, -1}, {1, -1},
+                    {-1, -2}, {0, -2}, {1, -2},
+                    {-1, 0}, {1, 0}
+            };
+
+            case LEFT -> offsets = new int[][]{
+                    {-1, -1}, {-1, 0}, {-1, 1},
+                    {-2, -1}, {-2, 0}, {-2, 1},
+                    {0, -1}, {0, 1}
+            };
+
+            case RIGHT -> offsets = new int[][]{
+                    {1, -1}, {1, 0}, {1, 1},
+                    {2, -1}, {2, 0}, {2, 1},
+                    {0, -1}, {0, 1}
+            };
+
+            default -> {
+                return;
+            }
+        }
+
+        // Apply damage for all offsets
+        for (int[] o : offsets) {
+            int tx = ax + o[0];
+            int ty = ay + o[1];
+            npcManager.damageAtTile(tx, ty, avatar, AVATAR_ATTACK_DAMAGE);
+        }
+
+        // Crowding case: also hit NPCs stacked on avatar
+        npcManager.damageAtTile(ax, ay, avatar, AVATAR_ATTACK_DAMAGE);
+    }
+
+
 
     private record MovementPlan(Entity.Position target, double offsetX, double offsetY) {}
 
@@ -711,6 +823,72 @@ public class Engine {
     }
 
 
+    private void initializeAvatarAnimations(Direction facing) {
+        avatarAnimations.clear();
+        avatarAnimations.put(AvatarAction.IDLE, buildAvatarAnimations(
+                singleFrame(Tileset.AVATAR_UP_FRAMES[0]),
+                singleFrame(Tileset.AVATAR_DOWN_FRAMES[0]),
+                singleFrame(Tileset.AVATAR_LEFT_FRAMES[0]),
+                singleFrame(Tileset.AVATAR_RIGHT_FRAMES[0]),
+                1,
+                false));
+        avatarAnimations.put(AvatarAction.WALK, buildAvatarAnimations(
+                Tileset.AVATAR_UP_FRAMES, Tileset.AVATAR_DOWN_FRAMES,
+                Tileset.AVATAR_LEFT_FRAMES, Tileset.AVATAR_RIGHT_FRAMES,
+                AVATAR_WALK_TICKS,
+                true));
+        avatarAnimations.put(AvatarAction.RUN, buildAvatarAnimations(
+                Tileset.AVATAR_UP_FRAMES, Tileset.AVATAR_DOWN_FRAMES,
+                Tileset.AVATAR_LEFT_FRAMES, Tileset.AVATAR_RIGHT_FRAMES,
+                AVATAR_RUN_TICKS,
+                true));
+        avatarAnimations.put(AvatarAction.ATTACK, buildAvatarAnimations(
+                Tileset.AVATAR_ATTACK_UP_FRAMES, Tileset.AVATAR_ATTACK_DOWN_FRAMES,
+                Tileset.AVATAR_ATTACK_LEFT_FRAMES, Tileset.AVATAR_ATTACK_RIGHT_FRAMES,
+                AVATAR_ATTACK_TICKS,
+                false));
+
+        avatarAction = AvatarAction.IDLE;
+        avatarAnimation = avatarAnimations.get(avatarAction).get(facing);
+        avatarSprite = avatarAnimation.currentFrame();
+        lastFacing = directionToChar(facing);
+    }
+
+    private EnumMap<Direction, AnimationCycle> buildAvatarAnimations(TETile[] up, TETile[] down,
+                                                                     TETile[] left, TETile[] right,
+                                                                     int ticksPerFrame,
+                                                                     boolean loop) {
+        EnumMap<Direction, AnimationCycle> map = new EnumMap<>(Direction.class);
+        map.put(Direction.UP, new AnimationCycle(up, ticksPerFrame, loop));
+        map.put(Direction.DOWN, new AnimationCycle(down, ticksPerFrame, loop));
+        map.put(Direction.LEFT, new AnimationCycle(left, ticksPerFrame, loop));
+        map.put(Direction.RIGHT, new AnimationCycle(right, ticksPerFrame, loop));
+        return map;
+    }
+
+    private TETile[] singleFrame(TETile tile) {
+        return new TETile[]{tile};
+    }
+
+    private Direction directionFromChar(char facing) {
+        return switch (facing) {
+            case 'w' -> Direction.UP;
+            case 'a' -> Direction.LEFT;
+            case 'd' -> Direction.RIGHT;
+            default -> Direction.DOWN;
+        };
+    }
+
+    private char directionToChar(Direction direction) {
+        return switch (direction) {
+            case UP -> 'w';
+            case LEFT -> 'a';
+            case RIGHT -> 'd';
+            case DOWN -> 's';
+        };
+    }
+
+
     //starting inventory
     private void seedInitialInventory() {
         if (inventory == null) {
@@ -729,7 +907,7 @@ public class Engine {
         Item[] candidates = new Item[]{ItemRegistry.LIGHT_SHARD};
         int placed = 0;
         int attempts = 0;
-        while (placed < 6 && attempts < 400) {
+        while (placed < 5 && attempts < 400) {
             int x = random.nextInt(WORLD_WIDTH);
             int y = random.nextInt(WORLD_HEIGHT);
             attempts += 1;
@@ -757,7 +935,12 @@ public class Engine {
                 if (drop.item() == ItemRegistry.LIGHT_SHARD) {
                     triggerLightSurge();
                     pickedSomething = true;
-                    hudMessage = "A burst of light surrounds you";
+                    setHudMessage("A burst of light surrounds you", 3000);
+                    decayingLightRadius = MAX_LIGHT_RADIUS;
+                    lastDecayTime = System.currentTimeMillis();
+
+                    // Also update renderer radius immediately
+                    ter.setLightRadius(decayingLightRadius);
                     continue;
                 }
                 int leftover = inventory.add(drop.item(), drop.quantity());
@@ -780,6 +963,16 @@ public class Engine {
     }
 
 
+    private void setHudMessage(String msg, long durationMs) {
+        hudMessage = msg;
+        hudMessageExpireMs = System.currentTimeMillis() + durationMs;
+    }
+
+    private void updateHudMessage() {
+        if (!hudMessage.isEmpty() && System.currentTimeMillis() > hudMessageExpireMs) {
+            hudMessage = "";
+        }
+    }
 
     // True iff valid world position and is FLOOR tile
     private boolean isWalkableFloor(Entity.Position pos) {
@@ -812,44 +1005,110 @@ public class Engine {
         fallen.loseLife();
         hudMessage = "You died! Lives left: " + fallen.lives();
         fallen.respawn();
+        currentDirection = 0;
+        ticksSinceLastMove = 0;
+        initializeAvatarAnimations(Direction.DOWN);
+        attackInProgress = false;
+        attackQueued = false;
+        attackDown = false;
         avatarOffsetX = 0.0;
         avatarOffsetY = 0.0;
         drawX = fallen.x;
         drawY = fallen.y;
     }
 
+    private void updateLightDecay() {
+        if (lastDecayTime < 0) return;
+
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastDecayTime;
+
+        if (elapsed >= LIGHT_DECAY_INTERVAL_MS) {
+            lastDecayTime = now;
+
+            // shrink radius
+            decayingLightRadius -= 1.0;
+            if (decayingLightRadius < MIN_LIGHT_RADIUS) {
+                decayingLightRadius = MIN_LIGHT_RADIUS;
+            }
+
+            ter.setLightRadius(decayingLightRadius);
+
+            // Check death condition
+            if (decayingLightRadius <= 0.0) {
+                hudMessage = "Your light faded... you died.";
+                handleAvatarDeath(avatar);
+            }
+        }
+    }
+
     private void handleNpcDeath(Npc npc) {
+        Random rng = new Random();
         if (npc == null) {
             return;
         }
-        droppedItems.add(new DroppedItem(ItemRegistry.GEMSTONE, 1, npc.x(), npc.y()));
+        double r = rng.nextDouble();
+        if (r > 0.8) {
+            droppedItems.add(new DroppedItem(ItemRegistry.LIGHT_SHARD, 1, npc.x(), npc.y()));
+        }
+        if (r < 0.05) {
+            droppedItems.add(new DroppedItem(ItemRegistry.KEY, 1, npc.x(), npc.y()));
+        }
+
     }
 
 
-    private void tickAvatarAnimation() {
-        long now = System.currentTimeMillis();
-        if (currentDirection != 0) {
-            if (now - lastAnimUpdateMs >= AVATAR_ANIM_MS) {
-                animFrame = (animFrame + 1) % MAX_FRAMES;
-                lastAnimUpdateMs = now;
-                refreshAvatarSprite();
+    private void tickAvatarAnimation(boolean movedThisTick) {
+        if (avatarAnimation == null) {
+            return;
+        }
+
+        if (attackInProgress && avatarAnimation.isComplete()) {
+            attackInProgress = false;
+            attackQueued = false;
+        }
+
+        Direction facing = attackInProgress
+                ? attackFacing
+                : directionFromChar((currentDirection != 0) ? currentDirection : lastFacing);
+        AvatarAction desiredAction = attackInProgress
+                ? AvatarAction.ATTACK
+                : (currentDirection == 0)
+                ? AvatarAction.IDLE
+                : (shiftDown ? AvatarAction.RUN : AvatarAction.WALK);
+
+        EnumMap<Direction, AnimationCycle> byDirection = avatarAnimations.get(desiredAction);
+        AnimationCycle selected = byDirection.get(facing);
+
+        boolean actionChanged = desiredAction != avatarAction;
+        boolean animationChanged = selected != avatarAnimation;
+
+        if (actionChanged) {
+            if (desiredAction == AvatarAction.IDLE) {
+                selected.setFrameIndex(0);
+            } else if (desiredAction == AvatarAction.ATTACK) {
+                selected.restart();
+                attackQueued = false;
+            } else if (avatarAnimation != null) {
+                int carryIndex = avatarAnimation.frameIndex() % selected.frameCount();
+                selected.setFrameIndex(carryIndex);
             }
-        } else {
-            animFrame = 0;
+        } else if (animationChanged && avatarAnimation != null) {
+            int carryIndex = avatarAnimation.frameIndex() % selected.frameCount();
+            selected.setFrameIndex(carryIndex);
         }
-        refreshAvatarSprite();
+        avatarAction = desiredAction;
+        avatarAnimation = selected;
+
+        boolean shouldAdvance = avatarAction != AvatarAction.IDLE || movedThisTick || avatarAnimation.frameCount() > 1;
+        if (shouldAdvance) {
+            avatarAnimation.advance();
+        }
+
+        avatarSprite = avatarAnimation.currentFrame();
+        lastFacing = directionToChar(facing);
     }
 
-    private void refreshAvatarSprite() {
-        char facing = (currentDirection != 0) ? currentDirection : lastFacing;
-        switch (facing) {
-            case 'w' -> avatarSprite = Tileset.AVATAR_UP_FRAMES[animFrame];
-            case 'a' -> avatarSprite = Tileset.AVATAR_LEFT_FRAMES[animFrame];
-            case 'd' -> avatarSprite = Tileset.AVATAR_RIGHT_FRAMES[animFrame];
-            default -> avatarSprite = Tileset.AVATAR_DOWN_FRAMES[animFrame];
-        }
-        lastFacing = facing;
-    }
 
 
     //Load game via save file if exists, restores state via applyCommands
@@ -901,7 +1160,10 @@ public class Engine {
         return copy;
     }
 
-
-
-
+    private enum AvatarAction {
+        IDLE,
+        WALK,
+        RUN,
+        ATTACK
+    }
 }

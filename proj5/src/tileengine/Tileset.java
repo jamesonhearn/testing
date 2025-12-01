@@ -32,6 +32,10 @@ public class Tileset {
         return local.toString();
     }
 
+    private static String avatarAssetPath(String filename) {
+        Path local = Paths.get("assets", "avatars", "1", filename).toAbsolutePath();
+        return local.toString();
+    }
 
     // Create object for storing full set of directional sprites per avatar
     public record NpcSpriteSet(TETile[] walkUpFrames, TETile[] walkDownFrames,
@@ -206,6 +210,68 @@ public class Tileset {
             new TETile(' ', new Color(240, 234, 214),
                     new Color(46, 38, 33), "you", assetPath("avatar_walk_right_7.png"), 16),
     };
+
+    public static final TETile[] AVATAR_ATTACK_UP_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_up_0.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_up_1.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_up_2.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_up_3.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_up_4.png"), 13),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_up_5.png"), 13)
+    };
+
+    public static final TETile[] AVATAR_ATTACK_DOWN_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_down_0.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_down_1.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_down_2.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_down_3.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_down_4.png"), 14),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_down_5.png"), 14)
+    };
+
+    public static final TETile[] AVATAR_ATTACK_LEFT_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_left_0.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_left_1.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_left_2.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_left_3.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_left_4.png"), 15),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_left_5.png"), 15)
+    };
+
+    public static final TETile[] AVATAR_ATTACK_RIGHT_FRAMES = {
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_right_0.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_right_1.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_right_2.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_right_3.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_right_4.png"), 16),
+            new TETile(' ', new Color(240, 234, 214),
+                    new Color(46, 38, 33), "you", avatarAssetPath("avatar_attack_right_5.png"), 16)
+    };
+
+
 
 
 

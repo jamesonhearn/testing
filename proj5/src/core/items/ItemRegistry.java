@@ -32,6 +32,13 @@ public final class ItemRegistry {
             5,
             "Temporarily brightens your surroundings when picked up"
     );
+    public static final Item KEY = new Item(
+            "key",
+            "Iron Key",
+            ItemRarity.LEGENDARY,
+            5,
+            "But where does it go?"
+    );
 
     private ItemRegistry() {
     }

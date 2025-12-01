@@ -1,6 +1,7 @@
 package core.NPC;
 
 import tileengine.TETile;
+import core.animation.AnimationCycle;
 
 /**
  * Simple marker to render NPC death remnants separately from active actors.
@@ -8,12 +9,20 @@ import tileengine.TETile;
 public class Corpse {
     private final int x;
     private final int y;
-    private final TETile tile;
+    private TETile tile;
+    private AnimationCycle animation;
 
     public Corpse(int x, int y, TETile tile) {
         this.x = x;
         this.y = y;
         this.tile = tile;
+        this.animation = null;
+    }
+    public Corpse(int x, int y, AnimationCycle animation) {
+        this.x = x;
+        this.y = y;
+        this.animation = animation;
+        this.tile = animation.currentFrame();
     }
 
     public int x() {
@@ -26,5 +35,26 @@ public class Corpse {
 
     public TETile tile() {
         return tile;
+    }
+    /**
+     * Advance the death animation one frame. Returns {@code true} while the
+     * animation is still in progress so callers can stop ticking once the
+     * final frame is reached.
+     */
+    public boolean tick() {
+        if (animation == null) {
+            return false;
+        }
+        animation.advance();
+        tile = animation.currentFrame();
+        if (animation.isComplete()) {
+            animation = null;
+            return false;
+        }
+        return true;
+    }
+
+    public boolean isAnimating() {
+        return animation != null && !animation.isComplete();
     }
 }

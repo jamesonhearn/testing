@@ -3,30 +3,31 @@ package core.NPC;
 import core.AiBehavior;
 import core.Direction;
 import core.Entity;
+import core.animation.AnimationCycle;
 
 import tileengine.TETile;
 import tileengine.Tileset;
 
 import java.util.EnumMap;
 import java.util.Random;
-import java.util.Set;
 
 /**
  * Minimal NPC representation with random-walk behavior and sprite cycling.
  * Instances are updated by {@link NpcManager} and rendered directly by the engine
  * between the base and front tile layers.
  */
-public class Npc extends Entity{
+public class Npc extends Entity {
     private final Random rng;
-    private int animFrame = 0;
-    private int animTick = 0;
     private int moveTick = 0;
-    private final int animPhaseOffset;
 
     private boolean attacking = false;
 
 
     public final Tileset.NpcSpriteSet spriteSet;
+
+    private final EnumMap<Action, EnumMap<Direction, AnimationCycle>> animations = new EnumMap<>(Action.class);
+    private AnimationCycle currentAnimation;
+    private Action currentAction = Action.WALK;
 
     private final EnumMap<State, AiBehavior> behaviors = new EnumMap<>(State.class);
     private State state = State.IDLE;
@@ -49,7 +50,7 @@ public class Npc extends Entity{
     public void updateSmooth(double speed) {
         drawX += (x - drawX) * speed;
         drawY += (y - drawY) * speed;
-        
+
     }
 
     public Npc(int x, int y, Random rng, Tileset.NpcSpriteSet spriteSet, core.HealthComponent health) {
@@ -59,11 +60,10 @@ public class Npc extends Entity{
         behaviors.put(State.IDLE, new IdleBehavior());
         behaviors.put(State.SEEK, new SeekBehavior());
         behaviors.put(State.ATTACK, new AttackBehavior());
-        switchState(State.IDLE);
         this.drawX = x;
         this.drawY = y;
-        this.animPhaseOffset = rng.nextInt(ANIM_INTERVAL);
-        this.animFrame = rng.nextInt(spriteSet.walkUpFrames().length);
+        initializeAnimations();
+        switchState(State.IDLE);
     }
 
     public int x() {
@@ -86,7 +86,6 @@ public class Npc extends Entity{
      */
     public void tick(WorldView view) {
         moveTick += 1;
-        animTick += 1;
 
 
 
@@ -94,7 +93,8 @@ public class Npc extends Entity{
 
 
         State desiredState = selectState(view);
-        if (desiredState != state) {
+        boolean stateChanged = desiredState != state;
+        if (stateChanged) {
             switchState(desiredState);
         }
 
@@ -106,7 +106,7 @@ public class Npc extends Entity{
         }
 
         if (move == null) {
-            updateAnimationFrame();
+            updateAnimation(stateChanged);
             return;
         }
         int nx = x + move.dx;
@@ -115,10 +115,10 @@ public class Npc extends Entity{
             facing = move;
             x = nx;
             y = ny;
-            updateAnimationFrame();
+            updateAnimation(stateChanged);
             return;
         }
-        updateAnimationFrame();
+        updateAnimation(stateChanged);
     }
 
 
@@ -142,8 +142,9 @@ public class Npc extends Entity{
     private void switchState(State next) {
         state = next;
         activeBehavior = behaviors.get(next);
-        animTick = rng.nextInt(ANIM_INTERVAL);
-        animFrame = rng.nextInt(frameCountForState(next));
+        currentAction = Action.WALK;
+        currentAnimation = animations.get(currentAction).get(facing);
+        resetAnimationPhase();
         activeBehavior.onEnterState(this);
 
     }
@@ -153,47 +154,69 @@ public class Npc extends Entity{
      * Current animation frame tile based on facing direction.
      */
     public TETile currentTile() {
-        TETile[] frames = attacking ? attackFramesForFacing() : walkFramesForFacing();
-        return frames[animFrame];
+        return currentAnimation.currentFrame();
     }
 
     public void markAttacking() {
         attacking = true;
     }
 
-    private void updateAnimationFrame() {
-        if ((animTick + animPhaseOffset) % ANIM_INTERVAL != 0) {
-            return;
+    private void updateAnimation(boolean refreshedState) {
+        Action desiredAction = attacking ? Action.ATTACK : Action.WALK;
+        EnumMap<Direction, AnimationCycle> byDirection = animations.get(desiredAction);
+        AnimationCycle selected = byDirection.get(facing);
+
+        boolean actionChanged = desiredAction != currentAction;
+        boolean animationChanged = selected != currentAnimation;
+
+        if (actionChanged || refreshedState) {
+            selected.randomizeFrame(rng);
+        } else if (animationChanged && currentAnimation != null) {
+            int carryIndex = currentAnimation.frameIndex() % selected.frameCount();
+            selected.setFrameIndex(carryIndex);
         }
-        animTick = 0;
-        int frameCount = attacking ? spriteSet.attackUpFrames().length : spriteSet.walkUpFrames().length;
-        animFrame = (animFrame + 1) % frameCount;
+
+        currentAction = desiredAction;
+        currentAnimation = selected;
+        currentAnimation.advance();
     }
 
-    private int frameCountForState(State next) {
-        return next == State.ATTACK ? spriteSet.attackUpFrames().length : spriteSet.walkUpFrames().length;
+
+    private void initializeAnimations() {
+        animations.put(Action.WALK, buildDirectionAnimations(
+                spriteSet.walkUpFrames(), spriteSet.walkDownFrames(),
+                spriteSet.walkLeftFrames(), spriteSet.walkRightFrames()));
+        animations.put(Action.ATTACK, buildDirectionAnimations(
+                spriteSet.attackUpFrames(), spriteSet.attackDownFrames(),
+                spriteSet.attackLeftFrames(), spriteSet.attackRightFrames()));
+
+        currentAnimation = animations.get(currentAction).get(facing);
+        resetAnimationPhase();
     }
 
-    private TETile[] walkFramesForFacing() {
-        return switch (facing) {
-            case UP -> spriteSet.walkUpFrames();
-            case DOWN -> spriteSet.walkDownFrames();
-            case LEFT -> spriteSet.walkLeftFrames();
-            case RIGHT -> spriteSet.walkRightFrames();
-        };
+    private EnumMap<Direction, AnimationCycle> buildDirectionAnimations(TETile[] up, TETile[] down,
+                                                                        TETile[] left, TETile[] right) {
+        EnumMap<Direction, AnimationCycle> map = new EnumMap<>(Direction.class);
+        map.put(Direction.UP, new AnimationCycle(up, ANIM_INTERVAL));
+        map.put(Direction.DOWN, new AnimationCycle(down, ANIM_INTERVAL));
+        map.put(Direction.LEFT, new AnimationCycle(left, ANIM_INTERVAL));
+        map.put(Direction.RIGHT, new AnimationCycle(right, ANIM_INTERVAL));
+        return map;
     }
-    private TETile[] attackFramesForFacing() {
-        return switch (facing) {
 
-            case UP -> spriteSet.attackUpFrames();
-            case DOWN -> spriteSet.attackDownFrames();
-            case LEFT -> spriteSet.attackLeftFrames();
-            case RIGHT -> spriteSet.attackRightFrames();
-    };
-}
+    private void resetAnimationPhase() {
+        if (currentAnimation != null) {
+            currentAnimation.randomizeFrame(rng);
+        }
+    }
     private enum State {
         IDLE,
         SEEK,
+        ATTACK
+    }
+
+    private enum Action {
+        WALK,
         ATTACK
     }
 }
