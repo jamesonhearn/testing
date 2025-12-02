@@ -16,7 +16,7 @@ public class HealthComponent {
     private final List<Consumer<Entity>> deathCallbacks = new ArrayList<>();
 
     public HealthComponent(int max) {
-        this(max, max,0,0);
+        this(max, max, 0, 0);
     }
 
     public HealthComponent(int current, int max, int armor, int invulnerabilityFrames) {
@@ -37,6 +37,15 @@ public class HealthComponent {
         return armor;
     }
 
+    public int invulnerabilityFrames() {
+        return invulnerabilityFrames;
+    }
+
+    public int invulnerabilityRemaining() {
+        return invulnerabilityRemaining;
+    }
+
+
     public boolean isDepleted() {
         return current <= 0;
     }
@@ -45,21 +54,22 @@ public class HealthComponent {
     /**
      * Apply damage after armor reduction. Returns true if health was reduced.
      */
-    public boolean damage(int amount, Entity owner) {
+    public int damage(int amount, Entity owner) {
         if (isInvulnerable() || amount <= 0 || isDepleted()) {
-            return false;
+            return 0;
         }
         int applied = Math.max(0, amount - armor);
         if (applied <= 0) {
             invulnerabilityRemaining = invulnerabilityFrames;
-            return false;
+            return 0;
         }
+        applied = Math.min(applied, current);
         current = Math.max(0, current - applied);
         invulnerabilityRemaining = invulnerabilityFrames;
         if (current == 0) {
             fireDeath(owner);
         }
-        return true;
+        return applied;
     }
 
     public boolean isInvulnerable() {
@@ -79,6 +89,11 @@ public class HealthComponent {
             invulnerabilityRemaining -= 1;
         }
     }
+
+    public void setInvulnerabilityRemaining(int frames) {
+        invulnerabilityRemaining = Math.max(0, Math.min(invulnerabilityFrames, frames));
+    }
+
 
     public void resetInvulnerability() {
         invulnerabilityRemaining = 0;

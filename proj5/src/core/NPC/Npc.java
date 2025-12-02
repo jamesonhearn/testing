@@ -18,12 +18,15 @@ import java.util.Random;
  */
 public class Npc extends Entity {
     private final Random rng;
+    private final long rngSeed;
+    private final int variant;
     private int moveTick = 0;
+    private static final int SEEK_LIMIT = 15;
 
     private boolean attacking = false;
 
 
-    public final Tileset.NpcSpriteSet spriteSet;
+    private final Tileset.NpcSpriteSet spriteSet;
 
     private final EnumMap<Action, EnumMap<Direction, AnimationCycle>> animations = new EnumMap<>(Action.class);
     private AnimationCycle currentAnimation;
@@ -40,8 +43,12 @@ public class Npc extends Entity {
     private double drawX;
     private double drawY;
 
-    public void setDrawX(double x) { this.drawX = x; }
-    public void setDrawY(double y) { this.drawY = y; }
+    public void setDrawX(double x) {
+        this.drawX = x;
+    }
+    public void setDrawY(double y) {
+        this.drawY = y;
+    }
 
     /**
      * Nudge the render position toward the logical tile while snapping when close
@@ -53,9 +60,13 @@ public class Npc extends Entity {
 
     }
 
-    public Npc(int x, int y, Random rng, Tileset.NpcSpriteSet spriteSet, core.HealthComponent health) {
+    public Npc(int x, int y, Random rng, long rngSeed,
+               int variant, Tileset.NpcSpriteSet spriteSet,
+               core.HealthComponent health) {
         super(x, y, health);
         this.rng = rng;
+        this.rngSeed = rngSeed;
+        this.variant = variant;
         this.spriteSet = spriteSet;
         behaviors.put(State.IDLE, new IdleBehavior());
         behaviors.put(State.SEEK, new SeekBehavior());
@@ -79,6 +90,15 @@ public class Npc extends Entity {
     }
     public double drawY() {
         return drawY;
+    }
+
+
+    public long rngSeed() {
+        return rngSeed;
+    }
+
+    public int variant() {
+        return variant;
     }
 
     /**
@@ -109,8 +129,8 @@ public class Npc extends Entity {
             updateAnimation(stateChanged);
             return;
         }
-        int nx = x + move.dx;
-        int ny = y + move.dy;
+        int nx = x + move.getDx();
+        int ny = y + move.getDy();
         if (view.isWalkable(nx, ny) && !view.isOccupied(nx, ny)) {
             facing = move;
             x = nx;
@@ -122,19 +142,21 @@ public class Npc extends Entity {
     }
 
 
-    // Less than 2 - attack
-    // Less than 15 more than 2 - Seek
-    // More than 15 - Idle
+
+
     private State selectState(WorldView view) {
         int dx = Math.abs(view.avatarPosition().x() - x);
         int dy = Math.abs(view.avatarPosition().y() - y);
         int manhattan = dx + dy;
+        // Less than 2 - attack
         if (manhattan <= 2) {
             return State.ATTACK;
         }
-        if (manhattan < 15) {
+        // More than 15 - Idle
+        if (manhattan < SEEK_LIMIT) {
             return State.SEEK;
         }
+        // Less than 15 more than 2 - Seek
         return State.IDLE;
     }
 

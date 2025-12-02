@@ -28,6 +28,7 @@ public class TETile {
     private final String description;
     private final String filepath;
     private final int id;
+    private static final int COLOR_RANGE = 255;
 
     /**
      * Full constructor for TETile objects.
@@ -194,7 +195,7 @@ public class TETile {
         int rawNewValue = v + RandomUtils.uniform(r, -dv, dv + 1);
 
         // make sure value doesn't fall outside of the range 0 to 255.
-        int newValue = Math.min(255, Math.max(0, rawNewValue));
+        int newValue = Math.min(COLOR_RANGE, Math.max(0, rawNewValue));
         return newValue;
     }
 

@@ -15,6 +15,7 @@ public class AudioPlayer {
 
     private long lastFootstepTime = 0;
     private static final long FOOTSTEP_COOLDOWN_MS = 240;
+    private static final float DB_VAL = -15f;
 
     // ------------------------------------------------------
     // Utility: Try to obtain a Clip safely
@@ -35,7 +36,9 @@ public class AudioPlayer {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
             Clip clip = tryGetClip();
-            if (clip == null) return null;  // no device → silent mode
+            if (clip == null) {
+                return null;  // no device → silent mode
+            }
 
             try {
                 clip.open(audio);
@@ -71,7 +74,9 @@ public class AudioPlayer {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
             loopClip = tryGetClip();
-            if (loopClip == null) return;  // no device → silent mode
+            if (loopClip == null) {
+                return;  // no device → silent mode
+            }
 
             try {
                 loopClip.open(audio);
@@ -80,11 +85,13 @@ public class AudioPlayer {
                 return;
             }
 
-            setVolume(loopClip, -15f);
+            setVolume(loopClip, DB_VAL);
             loopClip.start();
 
-        } catch (Exception e) {
-            System.err.println("[Audio] Failed to play: " + filepath);
+        } catch (UnsupportedAudioFileException e) {
+            System.err.println("[Audio] Invalid file: " + filepath);
+        } catch (IOException e) {
+            System.err.println("[Audio] Failed to output: " + filepath);
         }
     }
 
@@ -94,7 +101,9 @@ public class AudioPlayer {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
             loopClip = tryGetClip();
-            if (loopClip == null) return;
+            if (loopClip == null) {
+                return;
+            }
 
             try {
                 loopClip.open(audio);
@@ -103,18 +112,20 @@ public class AudioPlayer {
                 return;
             }
 
-            setVolume(loopClip, -15f);
+            setVolume(loopClip, DB_VAL);
             loopClip.loop(Clip.LOOP_CONTINUOUSLY);
             loopClip.start();
 
-        } catch (Exception e) {
-            System.err.println("[Audio] Failed to play loop: " + filepath);
+        } catch (UnsupportedAudioFileException e) {
+            System.err.println("[Audio] Invalid file: " + filepath);
+        } catch (IOException e) {
+            System.err.println("[Audio] Failed to output: " + filepath);
         }
     }
 
     public void loadEffects(String... filepaths) {
         for (String path : filepaths) {
-            Clip clip = loadClip(path, -15f);
+            Clip clip = loadClip(path, DB_VAL);
             if (clip != null) {
                 effectsClips.add(clip);
             }
@@ -123,13 +134,19 @@ public class AudioPlayer {
 
     public void playRandomEffect() {
         long now = System.currentTimeMillis();
-        if (now - lastFootstepTime < FOOTSTEP_COOLDOWN_MS) return;
+        if (now - lastFootstepTime < FOOTSTEP_COOLDOWN_MS) {
+            return;
+        }
         lastFootstepTime = now;
 
-        if (effectsClips.isEmpty()) return;
+        if (effectsClips.isEmpty()) {
+            return;
+        }
 
         Clip clip = effectsClips.get(random.nextInt(effectsClips.size()));
-        if (clip == null) return;
+        if (clip == null) {
+            return;
+        }
 
         if (clip.isRunning()) {
             clip.stop();
@@ -159,7 +176,9 @@ public class AudioPlayer {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
             loopClip = tryGetClip();
-            if (loopClip == null) return;
+            if (loopClip == null) {
+                return;
+            }
 
             try {
                 loopClip.open(audio);
@@ -168,19 +187,23 @@ public class AudioPlayer {
                 return;
             }
 
-            setVolume(loopClip, -15f);
+            setVolume(loopClip, DB_VAL);
 
             loopClip.addLineListener(event -> {
                 if (event.getType() == LineEvent.Type.STOP) {
                     loopClip.close();
-                    if (onComplete != null) onComplete.run();
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
                 }
             });
 
             loopClip.start();
 
-        } catch (Exception e) {
-            System.err.println("[Audio] Failed to playThenCallback: " + filepath);
+        } catch (UnsupportedAudioFileException e) {
+            System.err.println("[Audio] Invalid file: " + filepath);
+        } catch (IOException e) {
+            System.err.println("[Audio] Failed to output: " + filepath);
         }
     }
 

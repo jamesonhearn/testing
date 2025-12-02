@@ -29,15 +29,15 @@ public class SeekBehavior implements AiBehavior {
 
         // Sort by squared Euclidean distance + tiny random jitter
         directions.sort(Comparator.comparingInt(dir -> {
-            int nx = owner.x() + dir.dx;
-            int ny = owner.y() + dir.dy;
+            int nx = owner.x() + dir.getDx();
+            int ny = owner.y() + dir.getDy();
             return heuristic(nx, ny, ax, ay) + RAND.nextInt(3);
         }));
 
         // Choose first valid move
         for (Direction dir : directions) {
-            int nx = owner.x() + dir.dx;
-            int ny = owner.y() + dir.dy;
+            int nx = owner.x() + dir.getDx();
+            int ny = owner.y() + dir.getDy();
 
             if (view.isWalkable(nx, ny) && !view.isOccupied(nx, ny)) {
                 desired = dir;
@@ -54,6 +54,6 @@ public class SeekBehavior implements AiBehavior {
     private int heuristic(int x1, int y1, int x2, int y2) {
         int dx = x1 - x2;
         int dy = y1 - y2;
-        return dx*dx + dy*dy; // squared distance
+        return dx * dx + dy * dy; // squared distance
     }
 }

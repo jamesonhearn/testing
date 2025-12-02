@@ -24,6 +24,7 @@ public class TERenderer {
     // Keep NPC sprites aligned to a single tile so their visual footprint matches the collision
     // grid even as TILE_SIZE (zoom) changes.
     private static final double NPC_SCALE_TILES = 1.0;
+    public static final int DIMMING_VALUE = 50;
     //Canvas sizes
     private int width;
     private int height;
@@ -105,8 +106,12 @@ public class TERenderer {
     //Radius of visible light circle around player
     private double lightRadius = 6;   // tunable
     public static final TETile DARK =
-            new TETile(' ', new Color(0,0,0), new Color(0,0,0), "darkness", 2);
+            new TETile(' ', new Color(0,  0, 0), new Color(0, 0, 0), "darkness", 2);
 
+
+    public double getLightRadius() {
+        return lightRadius;
+    }
 
     private boolean isLit(int x, int y) {
         double dx = x - avatarX;
@@ -134,8 +139,12 @@ public class TERenderer {
 
     // If camera is not on avatar, set goal as avatar location and recenter
     public void updateCamera() {
-        if (avatarX < 0 || avatarY < 0) return;
-        if (worldWidth == 0 || worldHeight == 0) return;
+        if (avatarX < 0 || avatarY < 0) {
+            return;
+        }
+        if (worldWidth == 0 || worldHeight == 0) {
+            return;
+        }
 
         double targetX = avatarX - viewWidth / 2.0;
         double targetY = avatarY - viewHeight / 2.0;
@@ -143,8 +152,8 @@ public class TERenderer {
         camTileX += (targetX - camTileX) * CAMERA_SMOOTH;
         camTileY += (targetY - camTileY) * CAMERA_SMOOTH;
 
-        viewOriginX = clamp((int)Math.round(camTileX), 0, worldWidth - viewWidth);
-        viewOriginY = clamp((int)Math.round(camTileY), 0, worldHeight - viewHeight);
+        viewOriginX = clamp((int) Math.round(camTileX), 0, worldWidth - viewWidth);
+        viewOriginY = clamp((int) Math.round(camTileY), 0, worldHeight - viewHeight);
     }
     public int getViewOriginX() {
         return viewOriginX;
@@ -154,12 +163,12 @@ public class TERenderer {
         return viewOriginY;
     }
 
-    public void configureView(int worldWidth, int worldHeight, int viewWidth, int viewHeight, int hudHeight) {
-        this.worldWidth = worldWidth;
-        this.worldHeight = worldHeight;
-        this.viewWidth = viewWidth;
-        this.viewHeight = viewHeight;
-        this.hudHeight = hudHeight;
+    public void configureView(int inWorldWidth, int inWorldHeight, int inViewWidth, int inViewHeight, int inHudHeight) {
+        this.worldWidth = inWorldWidth;
+        this.worldHeight = inWorldHeight;
+        this.viewWidth = inViewWidth;
+        this.viewHeight = inViewHeight;
+        this.hudHeight = inHudHeight;
     }
 
 
@@ -182,8 +191,12 @@ public class TERenderer {
 
 
     private int clamp(int value, int min, int max) {
-        if (value < min) return min;
-        if (value > max) return max;
+        if (value < min) {
+            return min;
+        }
+        if (value > max) {
+            return max;
+        }
         return value;
     }
 
@@ -217,7 +230,7 @@ public class TERenderer {
             int x = (screen.width - frame.getWidth()) / 2;
             int y = (screen.height - frame.getHeight()) / 2;
             frame.setLocation(x, y);
-        } catch (Exception e) {
+        } catch (NoSuchFieldException | IllegalAccessException e) {
             e.printStackTrace();
         }
     }
@@ -303,7 +316,7 @@ public class TERenderer {
     }
 
     // Bresenhams line algo for LOS lighting
-    private boolean isOccluded(int x2, int y2, TETile[][] world){
+    private boolean isOccluded(int x2, int y2, TETile[][] world) {
         int x1 = avatarX;
         int y1 = avatarY;
 
@@ -313,14 +326,18 @@ public class TERenderer {
         int dy = Math.abs(y2 - y1);
 
         // are we going Left/Right Up/Down
-        int sx = x1 < x2? 1 : -1;
-        int sy = y1 < y2? 1 : -1;
+        int sx = x1 < x2 ? 1 : -1;
+        int sy = y1 < y2 ? 1 : -1;
         // course correction
         int err = dx - dy;
 
         while (true) {
-            if (x1 == x2 && y1 == y2) return false; //base case
-            if (world[x1][y1] == Tileset.WALL_TOP) return true; // hit  wall - occlude beyond
+            if (x1 == x2 && y1 == y2) {
+                return false; //base case
+            }
+            if (world[x1][y1] == Tileset.WALL_TOP) {
+                return true; // hit  wall - occlude beyond
+            }
             int e2 = 2 * err;
 
             // check if veering right/left more than up/down
@@ -351,7 +368,7 @@ public class TERenderer {
 
         double dx = x - avatarX;
         double dy = y - avatarY;
-        double dist = Math.sqrt(dx*dx + dy*dy); // basic trig to get tile distance
+        double dist = Math.sqrt(dx * dx + dy * dy); // basic trig to get tile distance
 
         double radius = lightRadius; // define based on distance wanting to see
         // fully dark
@@ -376,7 +393,7 @@ public class TERenderer {
         double fade = dist - radius;   // 0.0 → 1.0
         fade = Math.min(1.0, Math.max(0.0, fade));
 
-        int brightness = (int) (50 * (1.0 - fade)); // 0 (black) to 50 (dim)
+        int brightness = (int) (DIMMING_VALUE * (1.0 - fade)); // 0 (black) to 50 (dim)
 
         StdDraw.setPenColor(brightness, brightness, brightness);
         StdDraw.filledSquare(toScreenX(x) + 0.5, toScreenY(y) + 0.5, 0.5);
@@ -464,12 +481,11 @@ public class TERenderer {
                 }
                 // draw non-wall tiles now
                 // draw walls behind the avatar now
-                if (isFloor(tile)){
+                if (isFloor(tile)) {
                     tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
                 } else if (isTopWall(tile) && y > avatarY) {
                     tile.drawSized(toScreenX(x), toScreenY(y), 1.0);
-                }
-                else {
+                } else {
                     context.frontTiles.add(new TileDraw(x, y, tile));
                 }
             }
@@ -517,7 +533,7 @@ public class TERenderer {
                     throw new IllegalArgumentException("Tile at " + x + "," + y + " is null.");
                 }
 
-                if (!inView(x,y)) {
+                if (!inView(x, y)) {
                     continue;
                 }
 

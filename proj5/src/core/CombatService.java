@@ -14,7 +14,11 @@ public class CombatService {
 
     private final Queue<DamageEvent> damageEvents = new ArrayDeque<>();
     private final Set<Entity> trackedEntities = new HashSet<>();
+    public interface DamageListener {
+        void onDamageApplied(Entity target, Entity source, int attemptedAmount, int appliedAmount);
+    }
 
+    private DamageListener damageListener;
     public void register(Entity entity) {
         if (entity != null) {
             trackedEntities.add(entity);
@@ -23,6 +27,10 @@ public class CombatService {
 
     public void unregister(Entity entity) {
         trackedEntities.remove(entity);
+    }
+
+    public void setDamageListener(DamageListener listener) {
+        this.damageListener = listener;
     }
 
     public void queueDamage(Entity target, Entity source, int amount) {
@@ -57,6 +65,9 @@ public class CombatService {
         if (health == null) {
             return;
         }
-        health.damage(event.amount(), event.target());
+        int applied = health.damage(event.amount(), event.target());
+        if (damageListener != null) {
+            damageListener.onDamageApplied(event.target(), event.source(), event.amount(), applied);
+        }
     }
 }

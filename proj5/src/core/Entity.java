@@ -14,7 +14,7 @@ public class Entity {
     protected HealthComponent health;
 
     public Entity(int x, int y) {
-        this(x,y, new HealthComponent(1));
+        this(x, y, new HealthComponent(1));
     }
 
     public Entity(int x, int y, HealthComponent health) {
@@ -26,17 +26,17 @@ public class Entity {
     public int x() {
         return x;
     }
-    public int y(){
+    public int y() {
         return y;
     }
 
     public Position position() {
-        return new Position(x,y);
+        return new Position(x, y);
     }
 
-    public void setPosition(int x, int y) {
-        this.x = x;
-        this.y = y;
+    public void setPosition(int newX, int newY) {
+        this.x = newX;
+        this.y = newY;
     }
 
     public Direction facing() {
@@ -51,15 +51,17 @@ public class Entity {
         return velocityX;
     }
     public double velocityY() {
+
         return velocityY;
     }
-    public void setVelocity(double velocityX, double velocityY) {
-        this.velocityX = velocityX;
-        this.velocityY = velocityY;
+    public void setVelocity(double newVelocityX, double newVelocityY) {
+        this.velocityX = newVelocityX;
+        this.velocityY = newVelocityY;
     }
 
     public HealthComponent health() {
+
         return health;
     }
-    public record Position(int x, int y){}
+    public record Position(int x, int y) { }
 }

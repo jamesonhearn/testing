@@ -5,7 +5,6 @@ import core.Entity;
 
 import core.Avatar;
 import core.CombatService;
-import edu.princeton.cs.algs4.StdDraw;
 import tileengine.TETile;
 import tileengine.Tileset;
 import core.HealthComponent;
@@ -36,8 +35,8 @@ public class NpcManager {
     /** Quick membership check for existing NPC tiles. */
     private final Set<Entity.Position> npcPositions = new HashSet<>();
     private final CombatService combatService;
-    private Consumer<Npc> deathHandler = npc -> {};
-
+    private Consumer<Npc> deathHandler = npc -> { };
+    private final int MAX_ATTEMPTS = 500;
     /** Direct lookup of NPCs by tile for hitbox-aware collision and queries. */
     private final java.util.Map<Entity.Position, List<Npc>> npcByTile = new java.util.HashMap<>();
 
@@ -61,7 +60,7 @@ public class NpcManager {
         corpses.clear();
         animatingCorpses.clear();
         int attempts = 0;
-        while (npcs.size() < DEFAULT_NPC_COUNT && attempts < 500) {
+        while (npcs.size() < DEFAULT_NPC_COUNT && attempts < MAX_ATTEMPTS) {
             attempts += 1;
             int x = rng.nextInt(world.length);
             int y = rng.nextInt(world[0].length);
@@ -72,8 +71,10 @@ public class NpcManager {
                 continue;
             }
             int variant = selectVariant();
+            long npcSeed = rng.nextLong();
             HealthComponent health = new HealthComponent(3, 3, 0, 8);
-            Npc npc = new Npc(x, y, new Random(rng.nextLong()), Tileset.loadNpcSpriteSet(variant), health);
+            Npc npc = new Npc(x, y, new Random(npcSeed), npcSeed, variant,
+                    Tileset.loadNpcSpriteSet(variant), health);
             npc.setDrawX(x);
             npc.setDrawY(y);
             health.addDeathCallback(entity -> handleNpcDeath((Npc) entity));
@@ -138,18 +139,12 @@ public class NpcManager {
             // Far from the player → normal collision (1 NPC per tile)
             if (dist > 4) {
                 occupied.add(pos);
-            }
-
-            // Near player → allow 3 NPCs per tile (small cluster)
-            else if (dist > 2) {
+            } else if (dist > 2) {
                 if (npcCountAt(pos) >= 3) {
                     occupied.add(pos);
                 }
-            }
-
-            // Very close → unlimited NPCs allowed
-            else {
-                // Do NOT add to occupied
+            } else {
+                continue;
             }
         }
 
@@ -165,8 +160,7 @@ public class NpcManager {
     /**
      * True when any NPC currently sits on the requested tile.
      */
-    public boolean isNpcAt(int x, int y)
-    {
+    public boolean isNpcAt(int x, int y) {
         return npcByTile.containsKey(new Entity.Position(x, y));
     }
 
@@ -211,12 +205,12 @@ public class NpcManager {
         List<Integer> variants = new ArrayList<>();
         Path npcRoot = Path.of("assets", "avatars", "NPC");
         try (var paths = Files.list(npcRoot)) {
-            paths.filter(Files::isDirectory)
-                    .map(path -> path.getFileName().toString())
-                    .filter(name -> name.matches("\\d+"))
-                    .map(Integer::valueOf)
-                    .sorted()
-                    .forEach(variants::add);
+            paths.filter(Files::isDirectory).
+                    map(path -> path.getFileName().toString()).
+                    filter(name -> name.matches("\\d+")).
+                    map(Integer::valueOf).
+                    sorted().
+                    forEach(variants::add);
         } catch (IOException e) {
             // Fallback to default variant when asset listing fails.
         }
@@ -243,6 +237,29 @@ public class NpcManager {
 
     private void tickCorpses() {
         animatingCorpses.removeIf(corpse -> !corpse.tick());
+    }
+
+    public void restoreState(List<Npc> restoredNpcs, List<Corpse> restoredCorpses) {
+        npcs.clear();
+        npcByTile.clear();
+        corpses.clear();
+        animatingCorpses.clear();
+
+        for (Npc npc : restoredNpcs) {
+            npcs.add(npc);
+            addNpcPosition(new Entity.Position(npc.x(), npc.y()), npc);
+            npc.health().addDeathCallback(entity -> handleNpcDeath((Npc) entity));
+            combatService.register(npc);
+        }
+
+        if (restoredCorpses != null) {
+            corpses.addAll(restoredCorpses);
+            for (Corpse corpse : restoredCorpses) {
+                if (corpse.isAnimating()) {
+                    animatingCorpses.add(corpse);
+                }
+            }
+        }
     }
 
     private void addNpcPosition(Entity.Position position, Npc npc) {

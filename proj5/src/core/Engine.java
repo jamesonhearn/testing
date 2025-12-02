@@ -7,7 +7,7 @@ import utils.FileUtils;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.io.File;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -16,7 +16,6 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import core.Direction;
 import core.NPC.Npc;
 import core.NPC.NpcManager;
 import core.animation.AnimationCycle;
@@ -29,25 +28,50 @@ import core.items.ItemStack;
 
 
 public class Engine {
-    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-    int screenWidth = (int) screenSize.getWidth();
-    int screenHeight = (int) screenSize.getHeight();
+    public static final int MENU_POLL_MS = 20;
+    public static final int INPUT_POLL_MS = 15;
+    public static final double HUD_TEXT_OFFSET_TILES = 1.5;
+    public static final int HEALTHBAR_DRAW_WIDTH = 30;
+    public static final double HEALTH_THRESHOLD_75 = 0.75;
+    public static final double HEALTH_THRESHOLD_50 = 0.50;
+    public static final double HEALTH_THRESHOLD_25 = 0.25;
+    public static final double INVENTORY_ROW_SPACING = 1.5;
+    public static final int HEALTH_POTION_MESSAGE_MS = 2000;
+    public static final int PLAYER_HEALTH = 50;
+    public static final int INVULNERABILITY_FRAMES = 15;
+    public static final int ITEM_DROP_RETRIES = 400;
+    public static final int LIGHT_SURGE_MESSAGE_MS = 3000;
+    public static final double RNG_20_PERCENT = 0.8;
+    public static final double RNG_30_PERCENT = 0.7;
+    public static final double RNG_95_PERCENT = 0.05;
+    public static final int MS_PER_S = 1000;
+    public static final int SEC_PER_MIN = 60;
+    public static final int ATTACK_OFFSET = -2;
+    public static final int DEFAULT_ALPHA = 170;
 
     public static final int WORLD_WIDTH = World.WIDTH;
     public static final int WORLD_HEIGHT = World.HEIGHT;
 
     private final int VIEW_WIDTH = 50; //screenWidth / 24;
-    private final int VIEW_HEIGHT = 35;//screenHeight / 24;
+    private final int VIEW_HEIGHT = 35; //screenHeight / 24;
     public static final int HUD_HEIGHT = 3;
     public static final String SAVE_FILE = "save.txt";
 
     private final TERenderer ter = new TERenderer();
     private TETile[][] world;
+    private long worldSeed;
     private Avatar avatar;
     private TETile avatarSprite;
     private StringBuilder history;
     private NpcManager npcManager;
+    private long npcSeed;
     private CombatService combatService;
+    private long sessionStartMs;
+    private long accumulatedPlayTimeMs;
+    private long finalPlayTimeMs;
+    private int enemiesFelled;
+    private int totalDamageTaken;
+    private int totalDamageGiven;
 
     // Inventory system stuffs
     private Inventory inventory;
@@ -55,8 +79,7 @@ public class Engine {
     private boolean inventoryVisible;
     private String hudMessage;
     private boolean tabDown = false;
-
-
+    private static final int DEFAULT_SLOT_COUNT = 16;
 
     // Lighting variables
 
@@ -72,6 +95,7 @@ public class Engine {
     private static final double SURGE_LIGHT_RADIUS = 12.0;
     private static final long LIGHT_SURGE_DURATION_MS = 10_000L;
     private static final long LIGHT_FADE_DURATION_MS = 3_000L;
+    private static final long END_FADE_DURATION_MS = 3_000L;
     private long lightSurgeStartMs = -1L;
 
 
@@ -86,9 +110,11 @@ public class Engine {
     private boolean shiftDown = false;
 
 
-    private static final String HEALTHBAR_IMAGE_PATH = "assets/ui/healthbar_early_concept.png";
-    private static final double HEALTHBAR_WIDTH_TILES = 8.0;
-    private static final double HEALTHBAR_HEIGHT_TILES = 2.0;
+    private static final String HB_FULL = "assets/ui/healthbar_full.png";
+    private static final String HB_75   = "assets/ui/healthbar_75.png";
+    private static final String HB_50   = "assets/ui/healthbar_50.png";
+    private static final String HB_25   = "assets/ui/healthbar_25.png";
+    private static final String HB_ZERO = "assets/ui/healthbar_empty.png";
     private static final double HUD_MARGIN_TILES = 0.5;
 
     private static final int TICK_MS = 30; // create ticks to create consistent movements
@@ -110,6 +136,7 @@ public class Engine {
     private static final int AVATAR_RUN_TICKS = Math.max(1, AVATAR_WALK_TICKS - 1);
     private static final int AVATAR_ATTACK_TICKS = Math.max(1, (int) Math.round(60.0 / TICK_MS));
     private static final int AVATAR_ATTACK_DAMAGE = 1;
+    private static final int AVATAR_DEATH_TICKS = Math.max(1, (int) Math.round(80.0 / TICK_MS));
 
     private final EnumMap<AvatarAction, EnumMap<Direction, AnimationCycle>> avatarAnimations =
             new EnumMap<>(AvatarAction.class);
@@ -121,14 +148,19 @@ public class Engine {
     private boolean attackQueued = false;
     private Direction attackFacing = Direction.DOWN;
 
+    private enum GameState { PLAYING, DYING, DEAD, ENDING, ENDED }
+    private GameState gameState = GameState.PLAYING;
+    private double endFadeStartRadius = BASE_LIGHT_RADIUS;
+    private long endFadeStartMs = -1L;
+
+
     private static final long NPC_SEED_SALT = 0x9e3779b97f4a7c15L;
 
 
     // Added smoothing to animations
-    private double drawX =0, drawY = 0;
+    private double drawX = 0, drawY = 0;
     private double avatarOffsetX = 0.0;
     private double avatarOffsetY = 0.0;
-    private static final double SMOOTH_SPEED = 0.40;
 
     public Engine() {
         music.loadEffects(
@@ -157,8 +189,8 @@ public class Engine {
         if (selection == 'q') {
             System.exit(0);
         } else if (selection == 'l') {
-            loadGame();
-            if (world == null) {
+            boolean loaded = loadGame();
+            if (!loaded || world == null) {
                 music.stop();
                 promptSeedAndStart();
             }
@@ -170,23 +202,43 @@ public class Engine {
     }
 
 
-    public TETile[][] interactWithInputString(String input) {
+    public void interactWithInputString(String input) {
         reset();
         applyCommands(input.toLowerCase(Locale.ROOT), true, false);
-        return worldWithAvatar();
+        worldWithAvatar();
     }
 
     private void reset() {
         world = null;
+        worldSeed = 0L;
         avatar = null;
         history = new StringBuilder();
         npcManager = null;
+        npcSeed = 0L;
         combatService = new CombatService();
+        combatService.setDamageListener(this::recordDamageStats);
         avatarAnimations.clear();
         avatarAnimation = null;
         avatarAction = AvatarAction.IDLE;
+        currentDirection = 0;
+        attackInProgress = false;
+        attackQueued = false;
+        attackDown = false;
+        gameState = GameState.PLAYING;
+        sessionStartMs = 0L;
+        accumulatedPlayTimeMs = 0L;
+        finalPlayTimeMs = 0L;
+        enemiesFelled = 0;
+        totalDamageTaken = 0;
+        totalDamageGiven = 0;
+        endFadeStartRadius = BASE_LIGHT_RADIUS;
+        endFadeStartMs = -1L;
+        avatarOffsetX = 0.0;
+        avatarOffsetY = 0.0;
+        drawX = 0.0;
+        drawY = 0.0;
         //Reset inventory
-        inventory = new Inventory(16);
+        inventory = new Inventory(DEFAULT_SLOT_COUNT);
         droppedItems = new ArrayList<>();
         inventoryVisible = false;
         hudMessage = "";
@@ -229,7 +281,7 @@ public class Engine {
         // Snap rendering radius back to base
         ter.setLightRadius(BASE_LIGHT_RADIUS);
 
-        // ✔ IMPORTANT: Correct the decaying state
+        //  Correct the decaying state
         decayingLightRadius = BASE_LIGHT_RADIUS;
         lastDecayTime = System.currentTimeMillis();
     }
@@ -254,7 +306,7 @@ public class Engine {
                     return c;
                 }
             }
-            StdDraw.pause(20);
+            StdDraw.pause(MENU_POLL_MS);
         }
     }
 
@@ -270,7 +322,7 @@ public class Engine {
 
 
             if (!StdDraw.hasNextKeyTyped()) {
-                StdDraw.pause(15);
+                StdDraw.pause(INPUT_POLL_MS);
                 continue;
             }
             char c = StdDraw.nextKeyTyped();
@@ -289,6 +341,18 @@ public class Engine {
     private void gameLoop() {
         music.playLoop("assets/audio/spookycave.wav"); // uncomment when you want to check music
         while (true) {
+
+            switch (gameState) {
+                case DYING, DEAD -> {
+                    runDeathSequence();
+                    continue;
+                }
+                case ENDING, ENDED -> {
+                    runEndSequence();
+                    continue;
+                }
+                default -> { } // fall through
+            }
             updateHudMessage();
             renderWithHud();
 
@@ -307,19 +371,10 @@ public class Engine {
                 npcManager.tick(world, avatar);
             }
             combatService.tick();
+            checkForEndgame();
             updateLightDecay();
             StdDraw.pause(TICK_MS);
             tickAvatarAnimation(avatarMoved);
-
-
-//            if (!StdDraw.hasNextKeyTyped()) {
-//                StdDraw.pause(15);
-//                continue;
-//            }
-//            char c = StdDraw.nextKeyTyped();
-//            if (processCommand(Character.toLowerCase(c), true, true)) {
-//                return; //save and exit
-//            }
         }
     }
 
@@ -343,26 +398,49 @@ public class Engine {
         ter.applyFullLightingPass(world, context);
         drawHud();
         drawInventoryOverlay();
-        StdDraw.picture(screenWidth / 2, screenHeight / 2, "assets/ui/healthbar_early_concept.png", 20,10);
+        if (gameState == GameState.DEAD) {
+            drawDeathOverlay();
+        }
+        if (gameState == GameState.ENDED) {
+            drawEndOverlay();
+        }
         StdDraw.show();
     }
 
     //Draw hud (just a bar at the top that displays tile under mouse
     private void drawHud() {
         StdDraw.setPenColor(Color.WHITE);
-        double hudY = VIEW_HEIGHT + 1.5;
+        double hudY = VIEW_HEIGHT + HUD_TEXT_OFFSET_TILES;
 
 
-        double barWidth = 30;   // or whatever large size you want
-        double barHeight = 30 / 3.0;  // keep aspect ratio if needed
+        double barWidth = HEALTHBAR_DRAW_WIDTH;
+        double barHeight = HEALTHBAR_DRAW_WIDTH / 3.0;
 
-        double leftMargin = HUD_MARGIN_TILES;
-        double hbX = leftMargin + barWidth / 2.0;
+        double hbX = HUD_MARGIN_TILES + barWidth / 2.0;
         double hbY = VIEW_HEIGHT + HUD_HEIGHT - (barHeight / 2.0) - HUD_MARGIN_TILES * 2;
+        String healthBarImage;
+        double pct = 0.0;
 
-        StdDraw.picture(hbX, hbY, HEALTHBAR_IMAGE_PATH, barWidth, barHeight);
+        if (avatar != null) {
+            pct = (double) avatar.health().current() / avatar.health().max();
+        }
+
+        if (pct >= HEALTH_THRESHOLD_75) {
+            healthBarImage = HB_FULL;
+        } else if (pct >= HEALTH_THRESHOLD_50) {
+            healthBarImage = HB_75;
+        } else if (pct >= HEALTH_THRESHOLD_25) {
+            healthBarImage = HB_50;
+        } else if (pct > 0.0) {
+            healthBarImage = HB_25;
+        } else {
+            healthBarImage = HB_ZERO;
+        }
+
+        StdDraw.picture(hbX, hbY, healthBarImage, barWidth, barHeight);
+
+        // === existing HUD text stuff ===
         StdDraw.textLeft(1, hudY, tileUnderMouse());
-        //StdDraw.textLeft(15, hudY, "Inventory: " + inventorySummary());
         if (!hudMessage.isEmpty()) {
             StdDraw.textRight(VIEW_WIDTH - 1, hudY, hudMessage);
         }
@@ -398,28 +476,36 @@ public class Engine {
 
     }
 
+    private void drawDeathOverlay() {
+        StdDraw.setPenColor(new Color(0, 0, 0, DEFAULT_ALPHA));
+        StdDraw.filledRectangle(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0);
+        StdDraw.setPenColor(Color.WHITE);
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 + 2, "Your light has been extinguished");
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, "N: New Game");
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 - 1, "L: Restore Save");
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 - 2, "Q: Quit");
+    }
 
-
-    // Inventory rendering
-    private String inventorySummary() {
-        if (inventory == null) {
-            return "Empty";
-        }
-        List<ItemStack> stacks = inventory.nonEmptySlots();
-        if (stacks.isEmpty()) {
-            return "Empty";
-        }
-        return stacks.stream()
-                .limit(3)
-                .map(s -> s.item().name() + " x" + s.quantity())
-                .collect(Collectors.joining(", "));
+    private void drawEndOverlay() {
+        StdDraw.setPenColor(new Color(0, 0, 0, DEFAULT_ALPHA));
+        StdDraw.filledRectangle(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0);
+        StdDraw.setPenColor(Color.WHITE);
+        double centerX = VIEW_WIDTH / 2.0;
+        double centerY = VIEW_HEIGHT / 2.0 + 3;
+        StdDraw.text(centerX, centerY, "The lightkeeper has escaped, the fire burns on");
+        StdDraw.text(centerX, centerY - 2, "Escape time: " + formatDuration(finalPlayTimeMs));
+        StdDraw.text(centerX, centerY - 3, "Enemies felled: " + enemiesFelled);
+        StdDraw.text(centerX, centerY - 4, "Damage taken: " + totalDamageTaken);
+        StdDraw.text(centerX, centerY - 5, "Damage given: " + totalDamageGiven);
+        StdDraw.text(centerX, centerY - 7, "N: Play Again");
+        StdDraw.text(centerX, centerY - 8, "Q: Quit");
     }
 
     private void drawInventoryOverlay() {
         if (!inventoryVisible) {
             return;
         }
-        StdDraw.setPenColor(new Color(0, 0, 0, 200));
+        StdDraw.setPenColor(new Color(0, 0, 0, DEFAULT_ALPHA));
         StdDraw.filledRectangle(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0);
         StdDraw.setPenColor(Color.WHITE);
         StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT - 2, "Inventory (press I to close)");
@@ -427,7 +513,7 @@ public class Engine {
         double startY = VIEW_HEIGHT - 4;
         int index = 0;
         for (ItemStack stack : inventory.nonEmptySlots()) {
-            double y = startY - index * 1.5;
+            double y = startY - index * INVENTORY_ROW_SPACING;
             if (y < HUD_HEIGHT) {
                 break;
             }
@@ -439,6 +525,29 @@ public class Engine {
         }
     }
 
+
+    private boolean inventoryHasItem(Item item) {
+        if (inventory == null || item == null) {
+            return false;
+        }
+        for (ItemStack stack : inventory.nonEmptySlots()) {
+            if (stack.item().equals(item) && stack.quantity() > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+    private boolean useHealthPotion() {
+        if (gameState != GameState.PLAYING || avatar == null || inventory == null) {
+            return false;
+        }
+        if (!inventory.remove(ItemRegistry.SMALL_POTION, 1)) {
+            return false;
+        }
+        avatar.health().restoreFull();
+        setHudMessage("Used Small Potion", HEALTH_POTION_MESSAGE_MS);
+        return true;
+    }
 
     private void updateInventoryToggle() {
         boolean tab = StdDraw.isKeyPressed(KeyEvent.VK_V);
@@ -460,7 +569,7 @@ public class Engine {
             char c = input.charAt(i);
             if (awaitingQuit) {
                 if (c == 'q') {
-                    saveHistory();
+                    saveGameState();
                     if (allowQuit) {
                         music.stop();
                         System.exit(0);
@@ -486,7 +595,7 @@ public class Engine {
                         history.append('n').append(seedStr).append('s');
                     }
                     startNewWorld(parseSeed(seedStr));
-                    i=end;
+                    i = end;
                     break;
                 case 'l':
                     loadGame();
@@ -500,10 +609,20 @@ public class Engine {
                             history.append(c);
                         }
                         //moveAvatar(c);
+                        boolean moved = moveAvatar(c);
+                        if (moved) {
+                            pickupAtAvatar();
+                        }
                     }
                     break;
                 case 'e':
                     pickupAtAvatar();
+                    break;
+                case 'r':
+                    if (recordHistory) {
+                        history.append(c);
+                    }
+                    useHealthPotion();
                     break;
                 case ':':
                     awaitingQuit = true;
@@ -511,101 +630,131 @@ public class Engine {
                 default:
                     break;
             }
-            i+=1;
+            i += 1;
         }
     }
-
-
-    // This one is a bit of a mess
     private boolean handleMovementRealtime(boolean record) {
-        // check if shift down and assign T/F for each directional val
         shiftDown = StdDraw.isKeyPressed(KeyEvent.VK_SHIFT);
-        boolean tab = StdDraw.isKeyPressed(KeyEvent.VK_TAB);
         boolean w = StdDraw.isKeyPressed(KeyEvent.VK_W);
         boolean a = StdDraw.isKeyPressed(KeyEvent.VK_A);
         boolean s = StdDraw.isKeyPressed(KeyEvent.VK_S);
         boolean d = StdDraw.isKeyPressed(KeyEvent.VK_D);
         boolean attack = StdDraw.isKeyPressed(KeyEvent.VK_SPACE);
 
-        // Check if any key pressed, used to reset direction
         boolean anyDown = w || a || s || d;
 
-        boolean attackJust = attack && !attackDown;
-        if (attackJust) {
-            Direction facing = directionFromChar((currentDirection != 0) ? currentDirection : lastFacing);
+        if (attack && !attackDown) {
+            Direction facing = directionFromChar(
+                    (currentDirection != 0) ? currentDirection : lastFacing);
             startAttack(facing);
         }
 
+        updateDirectionOnPress(w, a, s, d);
+        updateDirectionOnRelease(w, a, s, d);
 
-        // check if press or press and hold (Down vars jut recheck keyEvent)
-        boolean wJust = w && !wDown;
-        boolean aJust = a && !aDown;
-        boolean sJust = s && !sDown;
-        boolean dJust = d && !dDown;
+        boolean movedThisTick = processMovement(record, anyDown, w, a, s, d);
 
-        // Detect single key presses and move immediately
-        if (wJust) currentDirection = 'w';
-        if (aJust) currentDirection = 'a';
-        if (sJust) currentDirection = 's';
-        if (dJust) currentDirection = 'd';
-
-        // Update current direction when keys are released - use bools to find fallback direction
-        if (!w && currentDirection == 'w') currentDirection = fallbackDirection(w,a,s,d);
-        if (!a && currentDirection == 'a') currentDirection = fallbackDirection(w,a,s,d);
-        if (!s && currentDirection == 's') currentDirection = fallbackDirection(w,a,s,d);
-        if (!d && currentDirection == 'd') currentDirection = fallbackDirection(w,a,s,d);
-
-        // Clear direction if no keys are pressed
-        boolean movedThisTick = false;
-        if (!anyDown) {
-            currentDirection = 0;
-            ticksSinceLastMove = 0;
-        } else if (currentDirection != 0 && world != null) {
-            if (wJust || aJust || sJust || dJust) {
-                // New key press: move immediately
-
-
-                boolean moved = moveAvatar(currentDirection);
-                if (record) history.append(currentDirection);
-                if (moved) {
-                    music.playRandomEffect();
-                    pickupAtAvatar();
-                    movedThisTick = true;
-                }
-                ticksSinceLastMove = 0;
-            } else {
-                // Key held: move based on walk/run speed
-                ticksSinceLastMove++;
-                int speedTicks = shiftDown ? RUN_REPEAT_TICKS : WALK_REPEAT_TICKS;
-
-                if (ticksSinceLastMove >= speedTicks) {
-                    boolean moved = moveAvatar(currentDirection);
-                    if (record) history.append(currentDirection);
-                    if (moved) {
-                        music.playRandomEffect();
-                        pickupAtAvatar();
-                        movedThisTick = true;
-                    }
-                    ticksSinceLastMove = 0;
-                }
-            }
-        }
-
-        // Update previous key states
         wDown = w;
         aDown = a;
         sDown = s;
         dDown = d;
         attackDown = attack;
+
         return movedThisTick;
+    }
+
+    private void updateDirectionOnPress(boolean w, boolean a, boolean s, boolean d) {
+        if (w && !wDown) {
+            currentDirection = 'w';
+        }
+        if (a && !aDown) {
+            currentDirection = 'a';
+        }
+        if (s && !sDown) {
+            currentDirection = 's';
+        }
+        if (d && !dDown) {
+            currentDirection = 'd';
+        }
+    }
+    private void updateDirectionOnRelease(boolean w, boolean a, boolean s, boolean d) {
+        if (!w && currentDirection == 'w') {
+            currentDirection = fallbackDirection(w, a, s, d);
+        }
+        if (!a && currentDirection == 'a') {
+            currentDirection = fallbackDirection(w, a, s, d);
+        }
+        if (!s && currentDirection == 's') {
+            currentDirection = fallbackDirection(w, a, s, d);
+        }
+        if (!d && currentDirection == 'd') {
+            currentDirection = fallbackDirection(w, a, s, d);
+        }
+    }
+
+    private boolean processMovement(boolean record,
+                                    boolean anyDown,
+                                    boolean w, boolean a, boolean s, boolean d) {
+
+        if (!anyDown) {
+            currentDirection = 0;
+            ticksSinceLastMove = 0;
+            return false;
+        }
+
+        if (currentDirection == 0 || world == null) {
+            return false;
+        }
+
+        boolean freshPress = (w && !wDown)
+                || (a && !aDown)
+                || (s && !sDown)
+                || (d && !dDown);
+
+        if (freshPress) {
+            ticksSinceLastMove = 0;
+            return tryMove(record);
+        }
+
+        ticksSinceLastMove += 1;
+        int speedTicks = shiftDown ? RUN_REPEAT_TICKS : WALK_REPEAT_TICKS;
+
+        if (ticksSinceLastMove >= speedTicks) {
+            ticksSinceLastMove = 0;
+            return tryMove(record);
+        }
+
+        return false;
+    }
+    private boolean tryMove(boolean record) {
+        boolean moved = moveAvatar(currentDirection);
+
+        if (record) {
+            history.append(currentDirection);
+        }
+
+        if (moved) {
+            music.playRandomEffect();
+            pickupAtAvatar();
+        }
+
+        return moved;
     }
 
     // Allow for return to prior direction on multi key movements
     private char fallbackDirection(boolean w, boolean a, boolean s, boolean d) {
-        if (w) return 'w';
-        if (a) return 'a';
-        if (s) return 's';
-        if (d) return 'd';
+        if (w) {
+            return 'w';
+        }
+        if (a) {
+            return 'a';
+        }
+        if (s) {
+            return 's';
+        }
+        if (d) {
+            return 'd';
+        }
         return 0;
     }
 
@@ -616,7 +765,7 @@ public class Engine {
                 if (StdDraw.hasNextKeyTyped()) {
                     char next = Character.toLowerCase(StdDraw.nextKeyTyped());
                     if (next == 'q') {
-                        saveHistory();
+                        saveGameState();
                         if (allowQuit) {
                             System.exit(0);
                         }
@@ -625,14 +774,18 @@ public class Engine {
                         return false;
                     }
                 }
-                StdDraw.pause(15);
+                StdDraw.pause(INPUT_POLL_MS);
             }
         }
         if (command == 'e') {
             pickupAtAvatar();
             return false;
         }
-        if (command == 'w' || command == 's' || command == 'a' || command == 'd'){
+        if (command == 'r') {
+            useHealthPotion();
+            return false;
+        }
+        if (command == 'w' || command == 's' || command == 'a' || command == 'd') {
             return false;
         }
         applyCommands(String.valueOf(command), record, allowQuit);
@@ -642,6 +795,10 @@ public class Engine {
 
     // Generator func via seed - drop player
     private void startNewWorld(long seed) {
+        worldSeed = seed;
+        sessionStartMs = System.currentTimeMillis();
+        accumulatedPlayTimeMs = 0L;
+        finalPlayTimeMs = 0L;
         World generator = new World(seed);
         world = generator.generate();
         resetLighting();
@@ -649,7 +806,8 @@ public class Engine {
         lastDecayTime = System.currentTimeMillis();
         ter.setLightRadius(decayingLightRadius);
         placeAvatar();
-        npcManager = new NpcManager(new Random(seed ^ NPC_SEED_SALT), combatService); // golden ratio hash, allows nice NPC RNG relative to world RNG
+        npcSeed = seed ^ NPC_SEED_SALT; // golden ratio hash, allows nice NPC RNG relative to world RNG
+        npcManager = new NpcManager(new Random(npcSeed), combatService);
         npcManager.setDeathHandler(this::handleNpcDeath);
         npcManager.spawn(world, avatar.x, avatar.y);
         // give initial items and random spawn ground loot
@@ -660,10 +818,11 @@ public class Engine {
     // Find first coordiate that is valid placement for player on spawn - just seeks from bottom right currently
     // Eventually include ladder/elevator placement
     private void placeAvatar() {
-        for (int x = 0; x < WORLD_WIDTH; x+=1) {
-            for (int y =0; y < WORLD_HEIGHT; y+=1) {
+        for (int x = 0; x < WORLD_WIDTH; x += 1) {
+            for (int y = 0; y < WORLD_HEIGHT; y += 1) {
                 if (world[x][y].equals(Tileset.FLOOR)) {
-                    HealthComponent avatarHealth = new HealthComponent(10, 10, 1, 15);
+                    HealthComponent avatarHealth = new HealthComponent(PLAYER_HEALTH, PLAYER_HEALTH,
+                            1, INVULNERABILITY_FRAMES);
                     avatarHealth.addDeathCallback(this::handleAvatarDeath);
                     avatar = new Avatar(x, y, 3, avatarHealth);
                     avatar.setSpawnPoint(new Entity.Position(x, y));
@@ -713,59 +872,65 @@ public class Engine {
         applyAttackDamage(facing);
     }
 
-    private void applyAttackDamage (Direction facing){
-        if (npcManager == null) return;
+    private void applyAttackDamage(Direction facing) {
+        if (npcManager == null) {
+            return;
+        }
 
         int ax = avatar.x;
         int ay = avatar.y;
 
-        // Offsets for the attack zone (relative to avatar)
-        int[][] offsets;
-
-        switch (facing) {
-            case UP -> offsets = new int[][]{
-                    {-1, 1}, {0, 1}, {1, 1},     // first row ahead
-                    {-1, 2}, {0, 2}, {1, 2},     // second row ahead
-                    {-1, 0}, {1, 0}              // side-adjacent tiles
-            };
-
-            case DOWN -> offsets = new int[][]{
-                    {-1, -1}, {0, -1}, {1, -1},
-                    {-1, -2}, {0, -2}, {1, -2},
-                    {-1, 0}, {1, 0}
-            };
-
-            case LEFT -> offsets = new int[][]{
-                    {-1, -1}, {-1, 0}, {-1, 1},
-                    {-2, -1}, {-2, 0}, {-2, 1},
-                    {0, -1}, {0, 1}
-            };
-
-            case RIGHT -> offsets = new int[][]{
-                    {1, -1}, {1, 0}, {1, 1},
-                    {2, -1}, {2, 0}, {2, 1},
-                    {0, -1}, {0, 1}
-            };
-
-            default -> {
-                return;
-            }
+        int[][] offsets = attackOffsetsFor(facing);
+        if (offsets == null) {
+            return;
         }
 
-        // Apply damage for all offsets
         for (int[] o : offsets) {
             int tx = ax + o[0];
             int ty = ay + o[1];
             npcManager.damageAtTile(tx, ty, avatar, AVATAR_ATTACK_DAMAGE);
         }
 
-        // Crowding case: also hit NPCs stacked on avatar
         npcManager.damageAtTile(ax, ay, avatar, AVATAR_ATTACK_DAMAGE);
+    }
+    private int[][] attackOffsetsFor(Direction facing) {
+        switch (facing) {
+            case UP:
+                return new int[][]{
+                        {-1, 1}, {0, 1}, {1, 1},
+                        {-1, 2}, {0, 2}, {1, 2},
+                        {-1, 0}, {1, 0}
+                };
+
+            case DOWN:
+                return new int[][]{
+                        {-1, -1}, {0, -1}, {1, -1},
+                        {-1, ATTACK_OFFSET}, {0, ATTACK_OFFSET}, {1, ATTACK_OFFSET},
+                        {-1, 0}, {1, 0}
+                };
+
+            case LEFT:
+                return new int[][]{
+                        {-1, -1}, {-1, 0}, {-1, 1},
+                        {ATTACK_OFFSET, -1}, {ATTACK_OFFSET, 0}, {ATTACK_OFFSET, 1},
+                        {0, -1}, {0, 1}
+                };
+
+            case RIGHT:
+                return new int[][]{
+                        {1, -1}, {1, 0}, {1, 1},
+                        {2, -1}, {2, 0}, {2, 1},
+                        {0, -1}, {0, 1}
+                };
+
+            default:
+                return null;
+        }
     }
 
 
 
-    private record MovementPlan(Entity.Position target, double offsetX, double offsetY) {}
+    private record MovementPlan(Entity.Position target, double offsetX, double offsetY) { }
 
 
     private MovementPlan planMove(char direction) {
@@ -847,6 +1012,11 @@ public class Engine {
                 Tileset.AVATAR_ATTACK_LEFT_FRAMES, Tileset.AVATAR_ATTACK_RIGHT_FRAMES,
                 AVATAR_ATTACK_TICKS,
                 false));
+        avatarAnimations.put(AvatarAction.DEATH, buildAvatarAnimations(
+                Tileset.AVATAR_DEATH_UP_FRAMES, Tileset.AVATAR_DEATH_DOWN_FRAMES,
+                Tileset.AVATAR_DEATH_LEFT_FRAMES, Tileset.AVATAR_DEATH_RIGHT_FRAMES,
+                AVATAR_DEATH_TICKS,
+                false));
 
         avatarAction = AvatarAction.IDLE;
         avatarAnimation = avatarAnimations.get(avatarAction).get(facing);
@@ -892,7 +1062,7 @@ public class Engine {
     //starting inventory
     private void seedInitialInventory() {
         if (inventory == null) {
-            inventory = new Inventory(16);
+            inventory = new Inventory(DEFAULT_SLOT_COUNT);
         }
         inventory.add(ItemRegistry.SMALL_POTION, 2);
         inventory.add(ItemRegistry.TORCH, 1);
@@ -907,7 +1077,7 @@ public class Engine {
         Item[] candidates = new Item[]{ItemRegistry.LIGHT_SHARD};
         int placed = 0;
         int attempts = 0;
-        while (placed < 5 && attempts < 400) {
+        while (placed < 5 && attempts < ITEM_DROP_RETRIES) {
             int x = random.nextInt(WORLD_WIDTH);
             int y = random.nextInt(WORLD_HEIGHT);
             attempts += 1;
@@ -935,7 +1105,7 @@ public class Engine {
                 if (drop.item() == ItemRegistry.LIGHT_SHARD) {
                     triggerLightSurge();
                     pickedSomething = true;
-                    setHudMessage("A burst of light surrounds you", 3000);
+                    setHudMessage("A burst of light surrounds you", LIGHT_SURGE_MESSAGE_MS);
                     decayingLightRadius = MAX_LIGHT_RADIUS;
                     lastDecayTime = System.currentTimeMillis();
 
@@ -996,29 +1166,19 @@ public class Engine {
     }
 
     private void handleAvatarDeath(Entity entity) {
-        if (!(entity instanceof Avatar fallen)) {
+        if (!(entity instanceof Avatar)) {
             return;
         }
-        for (core.items.ItemStack stack : inventory.dumpAll()) {
-            droppedItems.add(new DroppedItem(stack.item(), stack.quantity(), fallen.x, fallen.y));
+        if (gameState != GameState.PLAYING) {
+            return;
         }
-        fallen.loseLife();
-        hudMessage = "You died! Lives left: " + fallen.lives();
-        fallen.respawn();
-        currentDirection = 0;
-        ticksSinceLastMove = 0;
-        initializeAvatarAnimations(Direction.DOWN);
-        attackInProgress = false;
-        attackQueued = false;
-        attackDown = false;
-        avatarOffsetX = 0.0;
-        avatarOffsetY = 0.0;
-        drawX = fallen.x;
-        drawY = fallen.y;
+        beginDeathSequence();
     }
 
     private void updateLightDecay() {
-        if (lastDecayTime < 0) return;
+        if (lastDecayTime < 0) {
+            return;
+        }
 
         long now = System.currentTimeMillis();
         long elapsed = now - lastDecayTime;
@@ -1035,10 +1195,47 @@ public class Engine {
             ter.setLightRadius(decayingLightRadius);
 
             // Check death condition
-            if (decayingLightRadius <= 0.0) {
-                hudMessage = "Your light faded... you died.";
+            if (decayingLightRadius <= 1.0) {
+                decayingLightRadius = 1.0;
+                ter.setLightRadius(decayingLightRadius);
+                hudMessage = "Your light has been extinguished";
                 handleAvatarDeath(avatar);
             }
+        }
+    }
+
+    private long currentPlayTimeMs() {
+        long base = accumulatedPlayTimeMs;
+        if (gameState == GameState.ENDING || gameState == GameState.ENDED) {
+            return Math.max(base, finalPlayTimeMs);
+        }
+        if (sessionStartMs > 0) {
+            base += System.currentTimeMillis() - sessionStartMs;
+        }
+        return base;
+    }
+
+    private void recordDamageStats(Entity target, Entity source, int attempted, int applied) {
+        if (applied <= 0) {
+            return;
+        }
+        if (target instanceof Avatar) {
+            totalDamageTaken += applied;
+        }
+        if (source instanceof Avatar) {
+            totalDamageGiven += applied;
+        }
+    }
+
+    private void checkForEndgame() {
+        if (gameState != GameState.PLAYING || world == null || avatar == null) {
+            return;
+        }
+        if (!inventoryHasItem(ItemRegistry.KEY)) {
+            return;
+        }
+        if (world[avatar.x][avatar.y] == Tileset.ELEVATOR) {
+            beginEndSequence();
         }
     }
 
@@ -1047,14 +1244,146 @@ public class Engine {
         if (npc == null) {
             return;
         }
+        enemiesFelled += 1;
         double r = rng.nextDouble();
-        if (r > 0.8) {
+        if (r > RNG_20_PERCENT) {
             droppedItems.add(new DroppedItem(ItemRegistry.LIGHT_SHARD, 1, npc.x(), npc.y()));
         }
-        if (r < 0.05) {
+        if (r <= RNG_20_PERCENT && RNG_30_PERCENT <= r) {
+            droppedItems.add(new DroppedItem(ItemRegistry.SMALL_POTION, 1, npc.x(), npc.y()));
+        }
+        if (r < RNG_95_PERCENT && !inventoryHasItem(ItemRegistry.KEY)) {
             droppedItems.add(new DroppedItem(ItemRegistry.KEY, 1, npc.x(), npc.y()));
         }
 
+    }
+
+    private void beginDeathSequence() {
+        gameState = GameState.DYING;
+        currentDirection = 0;
+        ticksSinceLastMove = 0;
+        attackInProgress = false;
+        attackQueued = false;
+        attackDown = false;
+        clampLightToDeathRadius();
+        AvatarAction desired = AvatarAction.DEATH;
+        Direction facing = directionFromChar(lastFacing);
+        EnumMap<Direction, AnimationCycle> map = avatarAnimations.getOrDefault(desired,
+                avatarAnimations.get(AvatarAction.IDLE));
+        if (map != null) {
+            AnimationCycle cycle = map.get(facing);
+            if (cycle != null) {
+                cycle.restart();
+                avatarAnimation = cycle;
+                avatarAction = desired;
+                avatarSprite = avatarAnimation.currentFrame();
+            }
+        }
+    }
+
+    private void clampLightToDeathRadius() {
+        if (decayingLightRadius > 1.0) {
+            decayingLightRadius = 1.0;
+            ter.setLightRadius(decayingLightRadius);
+        }
+    }
+    private void beginEndSequence() {
+        if (gameState != GameState.PLAYING) {
+            return;
+        }
+        gameState = GameState.ENDING;
+        endFadeStartRadius = Math.max(0.0, ter.getLightRadius());
+        endFadeStartMs = System.currentTimeMillis();
+        finalPlayTimeMs = currentPlayTimeMs();
+    }
+
+    private void runEndSequence() {
+        updateHudMessage();
+        if (gameState == GameState.ENDING) {
+            long elapsed = System.currentTimeMillis() - endFadeStartMs;
+            double progress = Math.min(1.0, (double) elapsed / END_FADE_DURATION_MS);
+            double radius = Math.max(0.0, endFadeStartRadius * (1.0 - progress));
+            decayingLightRadius = radius;
+            ter.setLightRadius(radius);
+            if (progress >= 1.0) {
+                finalPlayTimeMs = accumulatedPlayTimeMs + (System.currentTimeMillis() - sessionStartMs);
+                decayingLightRadius = 0.0;
+                ter.setLightRadius(decayingLightRadius);
+                gameState = GameState.ENDED;
+            }
+        } else {
+            handleEndMenuInput();
+        }
+        renderWithHud();
+        StdDraw.pause(TICK_MS);
+        tickAvatarAnimation(false);
+    }
+
+
+    private void runDeathSequence() {
+        updateHudMessage();
+        renderWithHud();
+        if (gameState == GameState.DYING && avatarAnimation == null) {
+            gameState = GameState.DEAD;
+        }
+        if (gameState == GameState.DYING && avatarAnimation != null && avatarAnimation.isComplete()) {
+            gameState = GameState.DEAD;
+        }
+        if (gameState == GameState.DEAD) {
+            handleDeathMenuInput();
+        }
+        StdDraw.pause(TICK_MS);
+        tickAvatarAnimation(false);
+    }
+
+    private void handleDeathMenuInput() {
+        while (StdDraw.hasNextKeyTyped()) {
+            char c = Character.toLowerCase(StdDraw.nextKeyTyped());
+            if (c == 'q') {
+                System.exit(0);
+            }
+            if (c == 'n') {
+                startNewGameFromDeath();
+                return;
+            }
+            if (c == 'l') {
+                restoreSaveFromDeath();
+                return;
+            }
+        }
+    }
+
+    private void handleEndMenuInput() {
+        while (StdDraw.hasNextKeyTyped()) {
+            char c = Character.toLowerCase(StdDraw.nextKeyTyped());
+            if (c == 'q') {
+                System.exit(0);
+            }
+            if (c == 'n') {
+                startNewGameFromEnd();
+                return;
+            }
+        }
+    }
+
+    private void startNewGameFromDeath() {
+        reset();
+        promptSeedAndStart();
+        gameState = GameState.PLAYING;
+    }
+    private void startNewGameFromEnd() {
+        reset();
+        promptSeedAndStart();
+        gameState = GameState.PLAYING;
+    }
+
+    private void restoreSaveFromDeath() {
+        reset();
+        boolean loaded = loadGame();
+        if (!loaded || world == null) {
+            promptSeedAndStart();
+        }
+        gameState = GameState.PLAYING;
     }
 
 
@@ -1071,11 +1400,13 @@ public class Engine {
         Direction facing = attackInProgress
                 ? attackFacing
                 : directionFromChar((currentDirection != 0) ? currentDirection : lastFacing);
-        AvatarAction desiredAction = attackInProgress
+        AvatarAction desiredAction = (gameState == GameState.PLAYING)
+                ? (attackInProgress
                 ? AvatarAction.ATTACK
                 : (currentDirection == 0)
                 ? AvatarAction.IDLE
-                : (shiftDown ? AvatarAction.RUN : AvatarAction.WALK);
+                : (shiftDown ? AvatarAction.RUN : AvatarAction.WALK))
+                : AvatarAction.DEATH;
 
         EnumMap<Direction, AnimationCycle> byDirection = avatarAnimations.get(desiredAction);
         AnimationCycle selected = byDirection.get(facing);
@@ -1111,20 +1442,142 @@ public class Engine {
 
 
 
-    //Load game via save file if exists, restores state via applyCommands
-    private void loadGame() {
+    //Load game via save file if exists, restores state directly from snapshot
+    private boolean loadGame() {
         if (!FileUtils.fileExists(SAVE_FILE)) {
-            return;
+            return false;
         }
-        String saved = FileUtils.readFile(SAVE_FILE).toLowerCase(Locale.ROOT);
-        history = new StringBuilder(saved);
-        applyCommands(saved, false, false);
+        try (ObjectInputStream input = new ObjectInputStream(new FileInputStream(SAVE_FILE))) {
+            Object raw = input.readObject();
+            if (!(raw instanceof SaveState saved)) {
+                return false;
+            }
+            restoreFromState(saved);
+            return true;
+        } catch (IOException | ClassNotFoundException e) {
+            return false;
+        }
     }
 
-    // Basic save func
-    private void saveHistory() {
-        FileUtils.writeFile(SAVE_FILE, history.toString());
+    private void saveGameState() {
+        if (world == null || avatar == null || npcManager == null || inventory == null) {
+            return;
+        }
+        SaveState.SaveSnapshot snap = new SaveState.SaveSnapshot(
+                worldSeed,
+                npcSeed,
+                avatar,
+                decayingLightRadius,
+                lastDecayTime,
+                lightSurgeStartMs,
+                currentPlayTimeMs(),
+                enemiesFelled,
+                totalDamageTaken,
+                totalDamageGiven,
+                inventory,
+                droppedItems,
+                npcManager.npcs(),
+                npcManager.corpses()
+        );
+
+        SaveState state = SaveState.capture(snap);
+        try (ObjectOutputStream output = new ObjectOutputStream(new FileOutputStream(SAVE_FILE))) {
+            output.writeObject(state);
+        } catch (IOException e) {
+            // Best-effort; ignore failures to keep gameplay responsive
+        }
     }
+
+    private void restoreFromState(SaveState state) {
+        reset();
+        worldSeed = state.worldSeed();
+        npcSeed = state.npcSeed();
+        accumulatedPlayTimeMs = state.playTimeMs();
+        finalPlayTimeMs = 0L;
+        sessionStartMs = System.currentTimeMillis();
+        enemiesFelled = state.enemiesFelled();
+        totalDamageTaken = state.damageTaken();
+        totalDamageGiven = state.damageGiven();
+        World generator = new World(worldSeed);
+        world = generator.generate();
+        decayingLightRadius = state.decayingLightRadius();
+        lastDecayTime = state.lastDecayTime();
+        lightSurgeStartMs = state.lightSurgeStartMs();
+        ter.setLightRadius(decayingLightRadius);
+
+        avatar = buildAvatar(state.avatar());
+        initializeAvatarAnimations(directionFromChar(lastFacing));
+        drawX = avatar.x;
+        drawY = avatar.y;
+
+        inventory = rebuildInventory(state.inventory());
+        droppedItems = rebuildDroppedItems(state.droppedItems());
+
+        npcManager = new NpcManager(new Random(npcSeed), combatService);
+        npcManager.setDeathHandler(this::handleNpcDeath);
+        npcManager.restoreState(rebuildNpcs(state.npcs()), rebuildCorpses(state.corpses()));
+    }
+
+    private Avatar buildAvatar(SaveState.AvatarState avatarState) {
+        SaveState.HealthState healthState = avatarState.health();
+        HealthComponent health = new HealthComponent(healthState.current(), healthState.max(),
+                healthState.armor(), healthState.invulnerabilityFrames());
+        health.setInvulnerabilityRemaining(healthState.invulnerabilityRemaining());
+        health.addDeathCallback(this::handleAvatarDeath);
+        Avatar built = new Avatar(avatarState.x(), avatarState.y(), avatarState.lives(), health);
+        built.setSpawnPoint(new Entity.Position(avatarState.spawnX(), avatarState.spawnY()));
+        combatService.register(built);
+        lastFacing = directionToChar(Direction.DOWN);
+        return built;
+    }
+
+    private Inventory rebuildInventory(SaveState.InventoryState inventoryState) {
+        Inventory rebuilt = new Inventory(inventoryState.slots());
+        for (SaveState.ItemStackState stack : inventoryState.stacks()) {
+            Item item = ItemRegistry.byId(stack.itemId());
+            if (item != null) {
+                rebuilt.add(item, stack.quantity());
+            }
+        }
+        return rebuilt;
+    }
+
+    private List<DroppedItem> rebuildDroppedItems(List<SaveState.DroppedItemState> states) {
+        List<DroppedItem> drops = new ArrayList<>();
+        for (SaveState.DroppedItemState drop : states) {
+            Item item = ItemRegistry.byId(drop.itemId());
+            if (item != null) {
+                drops.add(new DroppedItem(item, drop.quantity(), drop.x(), drop.y()));
+            }
+        }
+        return drops;
+    }
+
+    private List<Npc> rebuildNpcs(List<SaveState.NpcState> states) {
+        List<Npc> npcs = new ArrayList<>();
+        for (SaveState.NpcState state : states) {
+            SaveState.HealthState healthState = state.health();
+            HealthComponent health = new HealthComponent(healthState.current(), healthState.max(),
+                    healthState.armor(), healthState.invulnerabilityFrames());
+            health.setInvulnerabilityRemaining(healthState.invulnerabilityRemaining());
+            Npc npc = new Npc(state.x(), state.y(), new Random(state.rngSeed()), state.rngSeed(), state.variant(),
+                    Tileset.loadNpcSpriteSet(state.variant()), health);
+            npc.setDrawX(state.drawX());
+            npc.setDrawY(state.drawY());
+            npcs.add(npc);
+        }
+        return npcs;
+    }
+
+    private List<core.NPC.Corpse> rebuildCorpses(List<SaveState.CorpseState> states) {
+        List<core.NPC.Corpse> corpses = new ArrayList<>();
+        for (SaveState.CorpseState state : states) {
+            corpses.add(new core.NPC.Corpse(state.x(), state.y(), Tileset.NPC_CORPSE));
+        }
+        return corpses;
+    }
+
+
 
 
     // seed parser for Menu
@@ -1142,12 +1595,11 @@ public class Engine {
             // When movement stops, snap to the target tile to avoid post-input sliding.
             drawX = avatar.x + avatarOffsetX;
             drawY = avatar.y + avatarOffsetY;
-//            drawX += (avatar.x - drawX) * SMOOTH_SPEED;
-//            drawY += (avatar.y - drawY) * SMOOTH_SPEED;
             double avatarScale = 2;   // adjust this number as desired (0.3–0.6 looks good)
             double screenX = ter.toScreenX(drawX);
             double screenY = ter.toScreenY(drawY);
-            avatarSprite.drawScaled(screenX, screenY, avatarScale);        }
+            avatarSprite.drawScaled(screenX, screenY, avatarScale);
+        }
     }
 
 
@@ -1160,10 +1612,18 @@ public class Engine {
         return copy;
     }
 
+    private String formatDuration(long millis) {
+        long totalSeconds = Math.max(0, millis) / MS_PER_S;
+        long minutes = totalSeconds / SEC_PER_MIN;
+        long seconds = totalSeconds % SEC_PER_MIN;
+        return String.format("%d:%02d", minutes, seconds);
+    }
+
     private enum AvatarAction {
         IDLE,
         WALK,
         RUN,
-        ATTACK
+        ATTACK,
+        DEATH
     }
 }
