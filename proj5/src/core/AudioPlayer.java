@@ -17,9 +17,6 @@ public class AudioPlayer {
     private static final long FOOTSTEP_COOLDOWN_MS = 240;
     private static final float DB_VAL = -15f;
 
-    // ------------------------------------------------------
-    // Utility: Try to obtain a Clip safely
-    // ------------------------------------------------------
     private Clip tryGetClip() {
         try {
             return AudioSystem.getClip();
@@ -29,15 +26,12 @@ public class AudioPlayer {
         }
     }
 
-    // ------------------------------------------------------
-    // Load a single WAV safely
-    // ------------------------------------------------------
     private Clip loadClip(String filepath, float gainDb) {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
             Clip clip = tryGetClip();
             if (clip == null) {
-                return null;  // no device → silent mode
+                return null;
             }
 
             try {
@@ -56,9 +50,7 @@ public class AudioPlayer {
         }
     }
 
-    // ------------------------------------------------------
-    // Set volume (if supported)
-    // ------------------------------------------------------
+
     private void setVolume(Clip clip, float gainDb) {
         if (clip != null && clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
             FloatControl volume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
@@ -66,16 +58,12 @@ public class AudioPlayer {
         }
     }
 
-    // ------------------------------------------------------
-    // Public API
-    // ------------------------------------------------------
-
     public void play(String filepath) {
         try {
             AudioInputStream audio = AudioSystem.getAudioInputStream(new File(filepath));
             loopClip = tryGetClip();
             if (loopClip == null) {
-                return;  // no device → silent mode
+                return;
             }
 
             try {

@@ -2,7 +2,7 @@ package core.items;
 import java.util.Objects;
 
 
-
+//General Item Objects, defined names, rarity, effects, etc
 public class Item {
     private final String id;
     private final String name;

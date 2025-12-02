@@ -51,8 +51,8 @@ public class Npc extends Entity {
     }
 
     /**
-     * Nudge the render position toward the logical tile while snapping when close
-     * to avoid visible drift (e.g., appearing a tile above the actual blocker).
+     * Nudge the render position toward the actual tile (snap when close)
+     * to avoid visible drift - can look like sliding on ice otherwise
      */
     public void updateSmooth(double speed) {
         drawX += (x - drawX) * speed;

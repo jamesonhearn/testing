@@ -7,6 +7,7 @@ import java.util.Random;
 
 /**
  * Simple animation helper that advances through a set of frames at a fixed tick interval.
+ * Allows for generalizing frame looping over different frame lengths
  */
 public class AnimationCycle {
     private final TETile[] frames;

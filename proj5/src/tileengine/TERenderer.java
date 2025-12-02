@@ -18,6 +18,9 @@ import java.util.List;
  * to, but be careful. We strongly recommend getting everything else working before
  * messing with this renderer, unless you're trying to do something fancy like
  * allowing scrolling of the screen or tracking the avatar or something similar.
+ *
+ * This entire class has become a complete mess, but it functionally works for the current
+ * implementation. so while I have forgotten how half of this is working, it DOES work
  */
 public class TERenderer {
     static final int TILE_SIZE = 32;
@@ -58,12 +61,7 @@ public class TERenderer {
     // Keep NPC sprites aligned to a single tile so their visual footprint matches the collision
     // grid even as TILE_SIZE (zoom) changes.
 
-    /**
-     * Immutable snapshot of the visible window for the current frame. Computing the
-     * bounds once lets multiple render passes (tiles, lighting, overlays) reuse the
-     * same extents without repeating clamp math and keeps deferred draw queues that
-     * preserve depth ordering.
-     */
+
     public static final class RenderContext {
         final int startX;
         final int endX;
@@ -173,10 +171,7 @@ public class TERenderer {
 
 
 
-    /**
-     * Compute the viewable bounds for the current camera position. Subsequent render
-     * steps should pass this context around instead of recalculating ranges.
-     */
+
     public RenderContext buildContext(TETile[][] world) {
         int startX = Math.max(0, viewOriginX);
         int endX = Math.min(world.length, viewOriginX + viewWidth);
@@ -471,9 +466,11 @@ public class TERenderer {
 
     // If behind avatar and standable, render (
     public void drawBaseTiles(TETile[][] world, RenderContext context) {
-        LightBounds bounds = context.litBounds;
-        for (int x = bounds.startX; x < bounds.endX; x++) {
-            for (int y = bounds.startY; y < bounds.endY; y++) {
+//        LightBounds bounds = context.litBounds;
+//        for (int x = bounds.startX; x < bounds.endX; x++) {
+//            for (int y = bounds.startY; y < bounds.endY; y++) {
+        for (int x = context.startX; x < context.endX; x++) {
+            for (int y = context.startY; y < context.endY; y++) {
                 TETile tile = world[x][y];
 
                 if (tile == null) {

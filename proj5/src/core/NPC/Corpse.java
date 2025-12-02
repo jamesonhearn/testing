@@ -37,9 +37,7 @@ public class Corpse {
         return tile;
     }
     /**
-     * Advance the death animation one frame. Returns {@code true} while the
-     * animation is still in progress so callers can stop ticking once the
-     * final frame is reached.
+     * Advance the death animation one frame, ends on final frame
      */
     public boolean tick() {
         if (animation == null) {

@@ -98,6 +98,7 @@ public class Engine {
     private static final long END_FADE_DURATION_MS = 3_000L;
     private long lightSurgeStartMs = -1L;
 
+    private boolean lightToggle = true;
 
     // AUDIO STUFF
     private final AudioPlayer music = new AudioPlayer();
@@ -130,8 +131,8 @@ public class Engine {
 
     //Animation variables
     private int ticksSinceLastMove = 0;
-    private static final int WALK_REPEAT_TICKS = 2;
-    private static final int RUN_REPEAT_TICKS = 1;   // ~2× faster
+    private static final int WALK_REPEAT_TICKS = 1;
+    private static final int RUN_REPEAT_TICKS = 1;   // 2x faster
     private static final int AVATAR_WALK_TICKS = Math.max(1, (int) Math.round(40.0 / TICK_MS));
     private static final int AVATAR_RUN_TICKS = Math.max(1, AVATAR_WALK_TICKS - 1);
     private static final int AVATAR_ATTACK_TICKS = Math.max(1, (int) Math.round(60.0 / TICK_MS));
@@ -289,10 +290,13 @@ public class Engine {
     private void showMainMenu() {
         StdDraw.clear(Color.BLACK);
         StdDraw.setPenColor(Color.WHITE);
-        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 + 3, "BYOW");
+        StdDraw.setFont(new Font("Serif", Font.BOLD, 60));
+        StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 + 7, "FIREKEEPER");
+        StdDraw.setFont(new Font("Serif", Font.BOLD, 24));
         StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0 + 1, "N - New World");
         StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0, "L - Load");
         StdDraw.text(VIEW_WIDTH / 2.0, VIEW_HEIGHT / 2.0  - 1, "Q - Quit");
+        ter.resetFont();
         StdDraw.show();
     }
 
@@ -339,7 +343,7 @@ public class Engine {
 
 
     private void gameLoop() {
-        music.playLoop("assets/audio/spookycave.wav"); // uncomment when you want to check music
+        music.playLoop("assets/audio/friendlycave2loopable.wav");
         while (true) {
 
             switch (gameState) {
@@ -395,7 +399,9 @@ public class Engine {
         drawAvatar();
         ter.drawNpcsFront(world, npcManager, context);
         ter.drawFrontTiles(context);
-        ter.applyFullLightingPass(world, context);
+        if (lightToggle) {
+            ter.applyFullLightingPass(world, context);
+        }
         drawHud();
         drawInventoryOverlay();
         if (gameState == GameState.DEAD) {
@@ -439,7 +445,6 @@ public class Engine {
 
         StdDraw.picture(hbX, hbY, healthBarImage, barWidth, barHeight);
 
-        // === existing HUD text stuff ===
         StdDraw.textLeft(1, hudY, tileUnderMouse());
         if (!hudMessage.isEmpty()) {
             StdDraw.textRight(VIEW_WIDTH - 1, hudY, hudMessage);
@@ -492,7 +497,7 @@ public class Engine {
         StdDraw.setPenColor(Color.WHITE);
         double centerX = VIEW_WIDTH / 2.0;
         double centerY = VIEW_HEIGHT / 2.0 + 3;
-        StdDraw.text(centerX, centerY, "The lightkeeper has escaped, the fire burns on");
+        StdDraw.text(centerX, centerY, "The lightkeeper has escaped.");
         StdDraw.text(centerX, centerY - 2, "Escape time: " + formatDuration(finalPlayTimeMs));
         StdDraw.text(centerX, centerY - 3, "Enemies felled: " + enemiesFelled);
         StdDraw.text(centerX, centerY - 4, "Damage taken: " + totalDamageTaken);
@@ -552,7 +557,6 @@ public class Engine {
     private void updateInventoryToggle() {
         boolean tab = StdDraw.isKeyPressed(KeyEvent.VK_V);
 
-        // Edge-trigger: only toggle when Tab goes from up -> down
         if (tab && !tabDown) {
             inventoryVisible = !inventoryVisible;
         }
@@ -785,6 +789,9 @@ public class Engine {
             useHealthPotion();
             return false;
         }
+        if (command == 'l') {
+            lightToggle = !lightToggle;
+        }
         if (command == 'w' || command == 's' || command == 'a' || command == 'd') {
             return false;
         }
@@ -806,7 +813,7 @@ public class Engine {
         lastDecayTime = System.currentTimeMillis();
         ter.setLightRadius(decayingLightRadius);
         placeAvatar();
-        npcSeed = seed ^ NPC_SEED_SALT; // golden ratio hash, allows nice NPC RNG relative to world RNG
+        npcSeed = seed ^ NPC_SEED_SALT; // golden ratio hash
         npcManager = new NpcManager(new Random(npcSeed), combatService);
         npcManager.setDeathHandler(this::handleNpcDeath);
         npcManager.spawn(world, avatar.x, avatar.y);
@@ -843,7 +850,6 @@ public class Engine {
 
 
     // Depending on direction, update avatar position and rotate sprite animation frame
-    // validate that canEnter (is FLOOR)
     // validate that canEnter (is FLOOR)
     private boolean moveAvatar(char direction) {
         MovementPlan plan = planMove(direction);
@@ -1291,6 +1297,8 @@ public class Engine {
         if (gameState != GameState.PLAYING) {
             return;
         }
+        music.stop();
+        music.play("assets/audio/elevatormovement.wav");
         gameState = GameState.ENDING;
         endFadeStartRadius = Math.max(0.0, ter.getLightRadius());
         endFadeStartMs = System.currentTimeMillis();
@@ -1595,7 +1603,7 @@ public class Engine {
             // When movement stops, snap to the target tile to avoid post-input sliding.
             drawX = avatar.x + avatarOffsetX;
             drawY = avatar.y + avatarOffsetY;
-            double avatarScale = 2;   // adjust this number as desired (0.3–0.6 looks good)
+            double avatarScale = 2;   // adjust this number if starts to look laggy
             double screenX = ter.toScreenX(drawX);
             double screenY = ter.toScreenY(drawY);
             avatarSprite.drawScaled(screenX, screenY, avatarScale);

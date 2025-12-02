@@ -1,5 +1,6 @@
 package core.items;
 
+//Define dropped items for world pickup / location storing
 public class DroppedItem {
     private final Item item;
     private int quantity;

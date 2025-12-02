@@ -24,20 +24,20 @@ import java.nio.file.Path;
 import core.animation.AnimationCycle;
 
 /**
- * Central coordinator for NPC creation, updates, and rendering helpers.
+ *  coordinator for NPC creation, updates, and rendering
  */
 public class NpcManager {
     private final Random rng;
     private final List<Npc> npcs = new ArrayList<>();
     private final List<Corpse> corpses = new ArrayList<>();
-    /** Corpses that still have a death animation to play. */
+    /** Corpses that still have death animation to play */
     private final List<Corpse> animatingCorpses = new ArrayList<>();
-    /** Quick membership check for existing NPC tiles. */
+    /**  membership check for existing NPC tiles. */
     private final Set<Entity.Position> npcPositions = new HashSet<>();
     private final CombatService combatService;
     private Consumer<Npc> deathHandler = npc -> { };
     private final int MAX_ATTEMPTS = 500;
-    /** Direct lookup of NPCs by tile for hitbox-aware collision and queries. */
+    /**lookup of NPCs by tile for hitbox collision */
     private final java.util.Map<Entity.Position, List<Npc>> npcByTile = new java.util.HashMap<>();
 
     private static final int DEFAULT_NPC_COUNT = 60;
@@ -52,7 +52,7 @@ public class NpcManager {
     }
 
     /**
-     * Spawn a handful of NPCs on random floor tiles, avoiding the avatar's starting tile.
+     * Spawn handful of NPCs on random floors, avoiding the avatars starting tile
      */
     public void spawn(TETile[][] world, int avoidX, int avoidY) {
         npcs.clear();
@@ -85,7 +85,7 @@ public class NpcManager {
     }
 
     /**
-     * Advance all NPCs by one tick with simple collision against walls, avatar, and each other.
+     * advance all NPCs by one tick with collision check against walls, avatar, other npcs.
      */
     public void tick(TETile[][] world, Avatar avatar) {
         Entity.Position avatarPos = new Entity.Position(avatar.x(), avatar.y());
@@ -96,7 +96,6 @@ public class NpcManager {
             Entity.Position previous = new Entity.Position(npc.x(), npc.y());
             removeNpcPosition(previous, npc);
 
-            // Preserve the avatar's tile marker even when sharing a tile with this NPC.
             if (previous.equals(avatarPos)) {
                 occupied.add(avatarPos);
             }
@@ -136,7 +135,7 @@ public class NpcManager {
 
             Entity.Position pos = new Entity.Position(npc.x(), npc.y());
 
-            // Far from the player → normal collision (1 NPC per tile)
+            // Far from player = normal collision (1 NPC per tile)
             if (dist > 4) {
                 occupied.add(pos);
             } else if (dist > 2) {
@@ -156,20 +155,12 @@ public class NpcManager {
     }
 
 
-
-    /**
-     * True when any NPC currently sits on the requested tile.
-     */
     public boolean isNpcAt(int x, int y) {
         return npcByTile.containsKey(new Entity.Position(x, y));
     }
 
 
-    /**
-     * Returns the NPC occupying the given tile or null when the tile is empty.
-     * This supports hitbox-aware collision checks that need the actual sprite
-     * footprint rather than a generic tile-sized blocker.
-     */
+
     public Npc npcAtTile(int x, int y) {
         List<Npc> occupants = npcByTile.get(new Entity.Position(x, y));
         if (occupants == null || occupants.isEmpty()) {
@@ -178,9 +169,7 @@ public class NpcManager {
         return occupants.get(0);
     }
 
-    /**
-     * Returns all NPCs occupying the given tile; returns an empty list when none are present.
-     */
+
     public List<Npc> npcsAtTile(int x, int y) {
         List<Npc> occupants = npcByTile.get(new Entity.Position(x, y));
         return occupants == null ? List.of() : List.copyOf(occupants);

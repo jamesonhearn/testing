@@ -34,7 +34,6 @@ public class World {
             resetWorld();
             carveRoomsWithHallways();
             addPerimeterWalls();
-            //addSecondRingFrontWalls();    // add extra front walls around those walls
             correctBackWalls();
             placeElevator();
             if (allFloorsConnected()) {
@@ -96,7 +95,7 @@ public class World {
     }
 
     private void addExtraConnectors() {
-        // squared distance; tune to taste
+        // squared distance
 
         List<Room> shuffled = new ArrayList<>(rooms);
         Collections.shuffle(shuffled, random);
@@ -408,7 +407,6 @@ public class World {
             }
         }
 
-        // commit
         for (int x = 0; x < WIDTH; x++) {
             System.arraycopy(updated[x], 0, world[x], 0, HEIGHT);
         }

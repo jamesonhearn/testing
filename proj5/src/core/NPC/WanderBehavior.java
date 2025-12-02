@@ -6,7 +6,8 @@ import core.AiBehavior;
 import core.Direction;
 
 /**
- * Defines Wandering for AI
+ * Defines Wandering for AI - not used yet,
+ * currently idle when not in range
  */
 
 public class WanderBehavior implements AiBehavior {

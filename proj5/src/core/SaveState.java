@@ -9,8 +9,8 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * Serialized snapshot of the full game state so loads can restore the exact
- * world layout, player status, and NPC positions without replaying input.
+ * serialized snapshot of the full game state so loads can restore the exact
+ * world layout, player status, and NPC positions without replaying input
  */
 public record SaveState(
         long worldSeed,

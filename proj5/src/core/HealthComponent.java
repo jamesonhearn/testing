@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Minimal health container so entities can track survivability without
- * embedding combat logic directly into NPCs.
+ * basic health container so entities can track health without
+ * storing combat logic directly into NPCs.
  */
 public class HealthComponent {
     private int current;
@@ -52,7 +52,7 @@ public class HealthComponent {
 
 
     /**
-     * Apply damage after armor reduction. Returns true if health was reduced.
+     * apply damage after armor reduction. Returns true if health was reduced.
      */
     public int damage(int amount, Entity owner) {
         if (isInvulnerable() || amount <= 0 || isDepleted()) {

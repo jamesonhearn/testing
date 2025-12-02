@@ -6,8 +6,8 @@ import java.util.Queue;
 import java.util.Set;
 
 /**
- * Centralized dispatcher for combat events. Entities enqueue damage and the
- * service resolves armor, invulnerability frames, and death callbacks each tick.
+ * central controller for combat - entities enqueue damage and the
+ * service resolves any armor, invulnerability frames, and death callbacks each tick.
  */
 public class CombatService {
     public record DamageEvent(Entity target, Entity source, int amount) { }
@@ -41,7 +41,7 @@ public class CombatService {
     }
 
     /**
-     * Resolve invulnerability timers and apply any queued damage for this frame.
+     * resolve invulnerability timers and apply queued damage for frame
      */
     public void tick() {
         for (Entity entity : trackedEntities) {

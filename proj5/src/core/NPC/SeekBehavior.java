@@ -8,7 +8,7 @@ import java.util.*;
 public class SeekBehavior implements AiBehavior {
     private Direction desired;
 
-    // Static RNG for tie-breaking so SeekBehavior doesn't need NPC RNG
+    // rng for tie-breaking so doesn't need NPC RNG
     private static final Random RAND = new Random();
 
     @Override
@@ -27,14 +27,14 @@ public class SeekBehavior implements AiBehavior {
         // Copy all directions
         List<Direction> directions = new ArrayList<>(List.of(Direction.values()));
 
-        // Sort by squared Euclidean distance + tiny random jitter
+        // Sort by squared Eucl. distance + random jitter
         directions.sort(Comparator.comparingInt(dir -> {
             int nx = owner.x() + dir.getDx();
             int ny = owner.y() + dir.getDy();
             return heuristic(nx, ny, ax, ay) + RAND.nextInt(3);
         }));
 
-        // Choose first valid move
+        // choose first valid move
         for (Direction dir : directions) {
             int nx = owner.x() + dir.getDx();
             int ny = owner.y() + dir.getDy();

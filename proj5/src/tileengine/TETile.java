@@ -19,6 +19,7 @@ import utils.RandomUtils;
  *
  * The provided TETile is immutable, i.e. none of its instance variables can change. You are welcome
  * to make your TETile class mutable, if you prefer.
+ *
  */
 
 public class TETile {
@@ -115,7 +116,7 @@ public class TETile {
         StdDraw.picture(
                 x + 0.5,
                 y + 0.5,
-                filepath,        // however your TETile stores file path
+                filepath,
                 scale,
                 scale
         );
